@@ -35,6 +35,13 @@ public class PanoramaSkyboxManager : MonoBehaviour
     private int currentVideoIndex = -1;
     private bool isPlayingVideo = false;
     
+    // プロパティ（UIから安全にアクセス可能）
+    public int CurrentImageIndex => currentImageIndex;
+    public int CurrentVideoIndex => currentVideoIndex;
+    public int PanoramaImageCount => panoramaImages?.Length ?? 0;
+    public int PanoramaVideoCount => panoramaVideos?.Length ?? 0;
+    public bool IsPlayingVideo => isPlayingVideo;
+    
     void Start()
     {
         SetupComponents();

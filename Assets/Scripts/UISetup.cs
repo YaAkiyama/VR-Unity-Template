@@ -1,13 +1,20 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections.Generic;
 
 /// <summary>
-/// UIパネルのセットアップヘルパー
-/// World SpaceのCanvasとボタンを作成
+/// 柔軟なUIパネルシステム
+/// パネル数の増減に対応し、常にカメラを向く
 /// </summary>
 public class UISetup : MonoBehaviour
 {
+    [Header("パネルシステム設定")]
+    [SerializeField] private int panelCount = 3; // パネルの数
+    [SerializeField] private float panelSpacing = 0f; // 3パネル時は固定位置を使用
+    [SerializeField] private bool alwaysFaceCamera = true; // 常にカメラを向く
+    [SerializeField] private float distanceFromCamera = 3.0f; // カメラからの距離
+    
     [Header("Canvas設定")]
     [SerializeField] private Vector2 canvasSize = new Vector2(3f, 2f);
     [SerializeField] private float canvasScale = 0.01f;
@@ -17,23 +24,57 @@ public class UISetup : MonoBehaviour
     [SerializeField] private int buttonColumns = 3;
     [SerializeField] private float buttonSpacing = 0.1f;
     
-    private Canvas canvas;
-    private RectTransform canvasRect;
+    // 柔軟なパネル管理
+    private List<Canvas> panelCanvases = new List<Canvas>();
+    private List<RectTransform> panelRects = new List<RectTransform>();
+    private List<Transform> panelTransforms = new List<Transform>();
+    private Camera mainCamera;
     private PanoramaSkyboxManager panoramaManager;
     
     void Start()
     {
-        // PanoramaSkyboxManagerを取得
+        // カメラ参照を確実に取得
+        StartCoroutine(InitializeAfterFrame());
+    }
+    
+    System.Collections.IEnumerator InitializeAfterFrame()
+    {
+        // 1フレーム待ってからカメラを検索（他のオブジェクトが初期化される時間を確保）
+        yield return null;
+        
+        // コンポーネント参照を取得
+        mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            mainCamera = FindObjectOfType<Camera>();
+        }
+        
+        if (mainCamera == null)
+        {
+            Debug.LogWarning("[UISetup] カメラが見つかりません。パネルの向き調整は無効になります。");
+        }
+        else
+        {
+            Debug.Log($"[UISetup] カメラを見つけました: {mainCamera.name} at {mainCamera.transform.position}");
+        }
+        
         panoramaManager = FindObjectOfType<PanoramaSkyboxManager>();
         if (panoramaManager == null)
         {
             Debug.LogWarning("[UISetup] PanoramaSkyboxManagerが見つかりません。パノラマ機能は無効です。");
         }
         
-        SetupCanvas();
-        CreateButtons();
+        CreateFlexiblePanels(); // 柔軟なパネルシステムを作成
         RemoveOldColliders(); // 既存の古いコライダーを削除
-        // ForceAddCollider(); // 個別ボタンコライダーを使用するため無効化
+    }
+    
+    void Update()
+    {
+        // パネルをカメラに向ける処理
+        if (alwaysFaceCamera && mainCamera != null)
+        {
+            FacePanelsToCamera();
+        }
     }
     
     void ForceAddCollider()
@@ -83,113 +124,345 @@ public class UISetup : MonoBehaviour
         }
     }
     
-    void SetupCanvas()
+    void CreateFlexiblePanels()
     {
-        // このGameObject自体をCanvasとして使用
-        canvas = gameObject.GetComponent<Canvas>();
-        if (canvas == null)
+        // 既存のパネルをすべて削除
+        GameObject[] existingPanels = new GameObject[] {
+            GameObject.Find("LeftPanel"),
+            GameObject.Find("CenterPanel"),
+            GameObject.Find("RightPanel")
+        };
+        
+        foreach (GameObject panel in existingPanels)
         {
-            canvas = gameObject.AddComponent<Canvas>();
+            if (panel != null)
+            {
+                Debug.Log($"[UISetup] 既存パネル {panel.name} を削除します");
+                DestroyImmediate(panel);
+            }
         }
+        
+        Debug.Log($"[UISetup] {panelCount}個のパネルを作成します");
+        
+        // カメラ参照がない場合は再取得を試みる
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+            if (mainCamera == null)
+            {
+                mainCamera = FindObjectOfType<Camera>();
+            }
+            Debug.Log($"[UISetup] カメラ参照: {(mainCamera != null ? mainCamera.name : "null")}");
+        }
+        
+        // パネルの初期位置を計算
+        for (int i = 0; i < panelCount; i++)
+        {
+            string panelName = GetPanelName(i);
+            Vector3 panelPosition = CalculatePanelPosition(i);
+            Debug.Log($"[UISetup] パネル{i} ({panelName}) の計算位置: {panelPosition}");
+            CreateSinglePanel(i, panelName, panelPosition);
+        }
+    }
+    
+    string GetPanelName(int index)
+    {
+        // パネル名を柔軟に生成
+        if (panelCount <= 3)
+        {
+            string[] names = {"LeftPanel", "CenterPanel", "RightPanel"};
+            return index < names.Length ? names[index] : $"Panel{index + 1}";
+        }
+        else
+        {
+            return $"Panel{index + 1}";
+        }
+    }
+    
+    Vector3 CalculatePanelPosition(int index)
+    {
+        if (panelCount == 1)
+        {
+            return Vector3.zero; // 単一パネルは中央
+        }
+        
+        // 3パネルの場合の特別な配置（カメラから等距離）
+        if (panelCount == 3)
+        {
+            switch (index)
+            {
+                case 0: // LeftPanel
+                    return new Vector3(-2.8f, 0, 1.3f);   // X:-2.8, Z:1.3
+                case 1: // CenterPanel  
+                    return new Vector3(0, 0, 3.0f);       // X:0, Z:3.0 前方中央
+                case 2: // RightPanel
+                    return new Vector3(2.8f, 0, 1.3f);    // X:2.8, Z:1.3
+            }
+        }
+        
+        // その他のパネル数の場合は従来の等間隔配置
+        float totalWidth = (panelCount - 1) * (canvasSize.x + panelSpacing);
+        float startX = -totalWidth / 2f;
+        float x = startX + index * (canvasSize.x + panelSpacing);
+        
+        return new Vector3(x, 0, 0);
+    }
+    
+    void CreateSinglePanel(int panelIndex, string panelName, Vector3 offset)
+    {
+        // パネル用のGameObjectを作成
+        GameObject panelGO = new GameObject(panelName);
+        panelGO.transform.SetParent(transform.parent); // UISetupオブジェクトと同じ親に配置
+        
+        // パネルの初期位置を設定（カメラ位置を基準にした絶対座標）
+        Vector3 cameraPosition = mainCamera != null ? mainCamera.transform.position : new Vector3(0, 1.6f, 0);
+        Vector3 worldPosition = cameraPosition + offset;
+        panelGO.transform.position = worldPosition;
+        
+        // 初期状態でカメラの方向を向くように設定
+        if (mainCamera != null && alwaysFaceCamera)
+        {
+            Vector3 directionToCamera = mainCamera.transform.position - worldPosition;
+            directionToCamera.y = 0; // Y軸回転のみ（水平回転のみ）
+            
+            if (directionToCamera.magnitude > 0.01f)
+            {
+                // UI要素が正面を向くように180度回転を追加（初期設定）
+                panelGO.transform.rotation = Quaternion.LookRotation(directionToCamera) * Quaternion.Euler(0, 180, 0);
+                Debug.Log($"[UISetup] {panelName} を初期設定でカメラ方向に向けました: {panelGO.transform.rotation.eulerAngles}");
+            }
+            else
+            {
+                panelGO.transform.rotation = transform.rotation;
+                Debug.Log($"[UISetup] {panelName} は距離が近すぎるため、デフォルト回転を使用");
+            }
+        }
+        else
+        {
+            panelGO.transform.rotation = transform.rotation;
+            Debug.Log($"[UISetup] {panelName} はカメラ追従無効のため、デフォルト回転を使用");
+        }
+        
+        panelGO.transform.localScale = transform.localScale;
+        
+        // Canvasコンポーネント追加
+        Canvas canvas = panelGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
-        canvas.sortingOrder = 0; // 3D空間での正しいレンダリング順序
+        canvas.sortingOrder = panelIndex; // パネルごとに異なるソート順序
         
         // CanvasScaler追加
-        CanvasScaler scaler = gameObject.GetComponent<CanvasScaler>();
-        if (scaler == null)
-        {
-            scaler = gameObject.AddComponent<CanvasScaler>();
-        }
+        CanvasScaler scaler = panelGO.AddComponent<CanvasScaler>();
         scaler.dynamicPixelsPerUnit = 10;
         
-        // GraphicRaycaster追加（UIインタラクション用）
-        GraphicRaycaster raycaster = gameObject.GetComponent<GraphicRaycaster>();
-        if (raycaster == null)
-        {
-            gameObject.AddComponent<GraphicRaycaster>();
-        }
+        // GraphicRaycaster追加
+        GraphicRaycaster raycaster = panelGO.AddComponent<GraphicRaycaster>();
         
         // Canvas RectTransform設定
-        canvasRect = canvas.GetComponent<RectTransform>();
-        canvasRect.sizeDelta = canvasSize * 100f; // Unity単位に変換
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+        canvasRect.sizeDelta = canvasSize * 100f;
         canvasRect.localScale = Vector3.one * canvasScale;
         
-        // Canvasのコライダーは削除（個別ボタンコライダーを使用）
-        BoxCollider canvasCollider = gameObject.GetComponent<BoxCollider>();
-        if (canvasCollider != null)
-        {
-            DestroyImmediate(canvasCollider);
-            Debug.Log("[UISetup] Canvas BoxColliderを削除しました");
-        }
+        // リストに追加
+        panelCanvases.Add(canvas);
+        panelRects.Add(canvasRect);
+        panelTransforms.Add(panelGO.transform);
         
         // 背景パネル作成
+        CreateBackgroundPanel(panelGO.transform, panelIndex);
+        
+        // ボタンコンテナ作成
+        CreateButtonsForPanel(panelGO.transform, panelIndex);
+        
+        Debug.Log($"[UISetup] {panelName}を作成しました - 位置: {panelGO.transform.position}");
+    }
+    
+    void CreateBackgroundPanel(Transform parent, int panelIndex)
+    {
         GameObject bgPanel = new GameObject("BackgroundPanel");
-        bgPanel.transform.SetParent(transform);
+        bgPanel.transform.SetParent(parent);
         
         RectTransform bgRect = bgPanel.AddComponent<RectTransform>();
         bgRect.anchorMin = Vector2.zero;
         bgRect.anchorMax = Vector2.one;
         bgRect.sizeDelta = Vector2.zero;
         bgRect.anchoredPosition = Vector2.zero;
-        bgRect.anchoredPosition3D = Vector3.zero; // Z位置も0に設定
-        bgRect.localPosition = Vector3.zero; // ローカル位置を明示的に設定
+        bgRect.anchoredPosition3D = Vector3.zero;
+        bgRect.localPosition = Vector3.zero;
+        bgRect.localRotation = Quaternion.identity; // ローカル回転をリセット
         bgRect.localScale = Vector3.one;
         
         Image bgImage = bgPanel.AddComponent<Image>();
-        bgImage.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+        // 柔軟なパネル色システム
+        bgImage.color = GetPanelColor(panelIndex);
         
-        // 背景パネルにコライダーを追加（基本的なヒット検出用）
+        // 背景パネルにコライダーを追加
         BoxCollider bgCollider = bgPanel.AddComponent<BoxCollider>();
-        // Canvas scale (0.01) の影響を補正 - 100倍にする
-        float scaleCorrection = 100f; // 0.01 の逆数
-        bgCollider.size = new Vector3(canvasSize.x * scaleCorrection, canvasSize.y * scaleCorrection, 5f); 
+        float scaleCorrection = 100f;
+        bgCollider.size = new Vector3(canvasSize.x * scaleCorrection, canvasSize.y * scaleCorrection, 5f);
         bgCollider.isTrigger = false;
         bgCollider.center = Vector3.zero;
         
-        Debug.Log($"[UISetup] 背景パネルにコライダー追加: Size={bgCollider.size}");
-        Debug.Log($"[UISetup] 背景パネル詳細 - Position: {bgPanel.transform.position}, Scale: {bgPanel.transform.lossyScale}");
-        Debug.Log($"[UISetup] Canvas詳細 - Position: {transform.position}, Scale: {transform.lossyScale}");
+        Debug.Log($"[UISetup] {parent.name}に背景パネル作成 - Size: {bgCollider.size}");
     }
     
-    void CreateButtons()
+    void FacePanelsToCamera()
     {
-        if (canvas == null) return;
+        if (mainCamera == null || panelTransforms.Count == 0) return;
         
+        Vector3 cameraPosition = mainCamera.transform.position;
+        
+        // 各パネルをカメラの方向に向ける
+        for (int i = 0; i < panelTransforms.Count; i++)
+        {
+            Transform panelTransform = panelTransforms[i];
+            if (panelTransform != null)
+            {
+                // カメラに向ける方向を計算
+                Vector3 directionToCamera = cameraPosition - panelTransform.position;
+                directionToCamera.y = 0; // Y軸回転のみ（水平回転のみ）
+                
+                if (directionToCamera.magnitude > 0.01f)
+                {
+                    // UI要素が正面を向くように180度回転を追加
+                    Quaternion targetRotation = Quaternion.LookRotation(directionToCamera) * Quaternion.Euler(0, 180, 0);
+                    
+                    // 初回は即座に回転、その後はスムーズに回転
+                    float rotationSpeed = Time.timeSinceLevelLoad < 1f ? 10f : 2f;
+                    panelTransform.rotation = Quaternion.Slerp(
+                        panelTransform.rotation, 
+                        targetRotation, 
+                        Time.deltaTime * rotationSpeed
+                    );
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// パネル数を動的に変更
+    /// </summary>
+    public void SetPanelCount(int newCount)
+    {
+        if (newCount < 1) newCount = 1;
+        if (newCount > 10) newCount = 10; // 最大10パネル
+        
+        if (newCount != panelCount)
+        {
+            panelCount = newCount;
+            RebuildPanels();
+        }
+    }
+    
+    /// <summary>
+    /// パネルシステムを再構築
+    /// </summary>
+    public void RebuildPanels()
+    {
+        // 既存のパネルを削除
+        for (int i = 0; i < panelTransforms.Count; i++)
+        {
+            if (panelTransforms[i] != null)
+            {
+                DestroyImmediate(panelTransforms[i].gameObject);
+            }
+        }
+        
+        // リストをクリア
+        panelCanvases.Clear();
+        panelRects.Clear();
+        panelTransforms.Clear();
+        
+        // 新しいパネルを作成
+        CreateFlexiblePanels();
+        
+        Debug.Log($"[UISetup] パネルシステムを再構築しました - パネル数: {panelCount}");
+    }
+    
+    /// <summary>
+    /// パネル位置をカメラから指定距離に設定
+    /// </summary>
+    public void UpdatePanelPositions()
+    {
+        if (mainCamera == null) return;
+        
+        Vector3 cameraForward = mainCamera.transform.forward;
+        Vector3 cameraRight = mainCamera.transform.right;
+        Vector3 basePosition = mainCamera.transform.position + cameraForward * distanceFromCamera;
+        
+        for (int i = 0; i < panelTransforms.Count; i++)
+        {
+            if (panelTransforms[i] != null)
+            {
+                Vector3 offset = CalculatePanelPosition(i);
+                // カメラの右方向を基準にオフセットを計算
+                Vector3 worldOffset = cameraRight * offset.x + Vector3.up * offset.y;
+                panelTransforms[i].position = basePosition + worldOffset;
+            }
+        }
+    }
+    
+    Color GetPanelColor(int panelIndex)
+    {
+        // HSVを使って柔軟に色を生成
+        if (panelCount <= 3)
+        {
+            // 3個以下の場合は固定色
+            Color[] fixedColors = {
+                new Color(0.3f, 0.2f, 0.2f, 0.9f), // 赤系
+                new Color(0.2f, 0.2f, 0.2f, 0.9f), // グレー
+                new Color(0.2f, 0.2f, 0.3f, 0.9f)  // 青系
+            };
+            return panelIndex < fixedColors.Length ? fixedColors[panelIndex] : Color.gray;
+        }
+        else
+        {
+            // 4個以上の場合はHSVで等間隔に分割
+            float hue = (float)panelIndex / panelCount;
+            Color color = Color.HSVToRGB(hue, 0.3f, 0.8f);
+            color.a = 0.9f;
+            return color;
+        }
+    }
+    
+    void CreateButtonsForPanel(Transform parent, int panelIndex)
+    {
         // ボタンコンテナ作成
         GameObject buttonContainer = new GameObject("ButtonContainer");
-        buttonContainer.transform.SetParent(transform);
+        buttonContainer.transform.SetParent(parent);
         
         RectTransform containerRect = buttonContainer.AddComponent<RectTransform>();
         containerRect.anchorMin = new Vector2(0.1f, 0.1f);
         containerRect.anchorMax = new Vector2(0.9f, 0.9f);
         containerRect.sizeDelta = Vector2.zero;
         containerRect.anchoredPosition = Vector2.zero;
-        containerRect.anchoredPosition3D = Vector3.zero; // Z位置も0に設定
-        containerRect.localPosition = new Vector3(0, 0, 0); // ローカル位置を明示的に設定
+        containerRect.anchoredPosition3D = Vector3.zero;
+        containerRect.localPosition = new Vector3(0, 0, 0);
+        containerRect.localRotation = Quaternion.identity; // ローカル回転をリセット
         containerRect.localScale = Vector3.one;
         
         // GridLayoutGroup追加
         GridLayoutGroup grid = buttonContainer.AddComponent<GridLayoutGroup>();
-        float buttonWidth = (containerRect.rect.width - buttonSpacing * (buttonColumns - 1)) / buttonColumns;
-        float buttonHeight = (containerRect.rect.height - buttonSpacing * (buttonRows - 1)) / buttonRows;
-        
         grid.cellSize = new Vector2(40, 30);
         grid.spacing = new Vector2(buttonSpacing * 30, buttonSpacing * 30);
         grid.padding = new RectOffset(20, 20, 20, 20);
         grid.childAlignment = TextAnchor.MiddleCenter;
         
-        // ボタン作成
+        // パネルごとに異なるボタンを作成
+        string[] panelPrefixes = {"L", "C", "R"}; // Left, Center, Right
+        
         for (int row = 0; row < buttonRows; row++)
         {
             for (int col = 0; col < buttonColumns; col++)
             {
                 int buttonIndex = row * buttonColumns + col + 1;
-                CreateButton(buttonContainer.transform, $"Button {buttonIndex}", buttonIndex);
+                int globalButtonIndex = panelIndex * (buttonRows * buttonColumns) + buttonIndex;
+                string buttonText = $"{panelPrefixes[panelIndex]}{buttonIndex}";
+                CreateButton(buttonContainer.transform, buttonText, globalButtonIndex, panelIndex);
             }
         }
     }
     
-    void CreateButton(Transform parent, string buttonText, int index)
+    void CreateButton(Transform parent, string buttonText, int globalIndex, int panelIndex)
     {
         // ボタンGameObject作成
         GameObject buttonGO = new GameObject(buttonText);
@@ -197,14 +470,22 @@ public class UISetup : MonoBehaviour
         
         RectTransform buttonRect = buttonGO.AddComponent<RectTransform>();
         buttonRect.localScale = Vector3.one;
-        buttonRect.anchoredPosition3D = Vector3.zero; // Z位置を0に設定
+        buttonRect.localRotation = Quaternion.identity; // ローカル回転をリセット
+        buttonRect.anchoredPosition3D = Vector3.zero;
         
         // ボタンコンポーネント追加
         Button button = buttonGO.AddComponent<Button>();
         
+        // パネルごとに異なるボタン色
+        Color[] panelButtonColors = {
+            new Color(0.8f, 0.3f, 0.3f, 1f), // 左パネル: 赤系
+            new Color(0.3f, 0.5f, 0.8f, 1f), // 中央パネル: 青系
+            new Color(0.3f, 0.8f, 0.3f, 1f) // 右パネル: 緑系
+        };
+        
         // ボタン背景画像
         Image buttonImage = buttonGO.AddComponent<Image>();
-        buttonImage.color = new Color(0.3f, 0.5f, 0.8f, 1f);
+        buttonImage.color = panelButtonColors[panelIndex];
         
         // テキスト作成
         GameObject textGO = new GameObject("Text");
@@ -215,11 +496,12 @@ public class UISetup : MonoBehaviour
         textRect.anchorMax = Vector2.one;
         textRect.sizeDelta = Vector2.zero;
         textRect.anchoredPosition = Vector2.zero;
-        textRect.anchoredPosition3D = Vector3.zero; // Z位置を0に設定
-        textRect.localPosition = Vector3.zero; // ローカル位置を明示的に設定
+        textRect.anchoredPosition3D = Vector3.zero;
+        textRect.localPosition = Vector3.zero;
+        textRect.localRotation = Quaternion.identity; // ローカル回転をリセット
         textRect.localScale = Vector3.one;
         
-        // TextMeshPro使用（利用可能な場合）
+        // TextMeshPro使用
         TextMeshProUGUI tmpText = textGO.AddComponent<TextMeshProUGUI>();
         if (tmpText != null)
         {
@@ -230,7 +512,6 @@ public class UISetup : MonoBehaviour
         }
         else
         {
-            // 通常のTextコンポーネントにフォールバック
             Text text = textGO.AddComponent<Text>();
             text.text = buttonText;
             text.fontSize = 24;
@@ -239,28 +520,28 @@ public class UISetup : MonoBehaviour
         }
         
         // ボタンクリックイベント設定
-        button.onClick.AddListener(() => OnButtonClick(index));
+        button.onClick.AddListener(() => OnButtonClick(globalIndex, panelIndex));
         
         // ボタンのカラー設定
         ColorBlock colors = button.colors;
-        colors.normalColor = new Color(0.3f, 0.5f, 0.8f, 1f);
-        colors.highlightedColor = new Color(0.4f, 0.6f, 0.9f, 1f);
-        colors.pressedColor = new Color(0.2f, 0.4f, 0.7f, 1f);
+        colors.normalColor = panelButtonColors[panelIndex];
+        colors.highlightedColor = panelButtonColors[panelIndex] * 1.2f;
+        colors.pressedColor = panelButtonColors[panelIndex] * 0.8f;
         button.colors = colors;
         
         // VRレーザーポインター用のコライダーを追加
         BoxCollider buttonCollider = buttonGO.AddComponent<BoxCollider>();
-        // UI要素のサイズをそのまま使用（Canvasが既にスケール適用済み）
         buttonCollider.size = new Vector3(40f, 30f, 0.05f);
-        buttonCollider.isTrigger = false; // Raycast検出用
+        buttonCollider.isTrigger = false;
         buttonCollider.center = Vector3.zero;
         
-        Debug.Log($"[UISetup] ボタンにコライダー追加: {buttonText}, WorldSize: {buttonCollider.size}");
+        Debug.Log($"[UISetup] ボタン作成: {buttonText} (パネル{panelIndex}), GlobalIndex: {globalIndex}");
     }
     
-    void OnButtonClick(int buttonIndex)
+    void OnButtonClick(int globalIndex, int panelIndex)
     {
-        Debug.Log($"ボタン {buttonIndex} がクリックされました！");
+        string[] panelNames = {"左パネル", "中央パネル", "右パネル"};
+        Debug.Log($"{panelNames[panelIndex]}のボタン {globalIndex} がクリックされました！");
         
         if (panoramaManager == null)
         {
@@ -268,8 +549,26 @@ public class UISetup : MonoBehaviour
             return;
         }
         
-        // ボタン機能の割り当て
-        switch (buttonIndex)
+        // パネルごとに異なる機能を割り当て
+        switch (panelIndex)
+        {
+            case 0: // 左パネル: パノラマ画像操作
+                HandleLeftPanelClick(globalIndex);
+                break;
+            case 1: // 中央パネル: パノラマ動画操作
+                HandleCenterPanelClick(globalIndex);
+                break;
+            case 2: // 右パネル: システム操作
+                HandleRightPanelClick(globalIndex);
+                break;
+        }
+    }
+    
+    void HandleLeftPanelClick(int buttonIndex)
+    {
+        // 左パネル: パノラマ画像関連
+        int localIndex = (buttonIndex - 1) % 6 + 1;
+        switch (localIndex)
         {
             case 1:
                 panoramaManager.ShowPanoramaImage(0);
@@ -280,23 +579,78 @@ public class UISetup : MonoBehaviour
                 Debug.Log("パノラマ画像2を表示");
                 break;
             case 3:
-                panoramaManager.ShowPanoramaVideo(0);
-                Debug.Log("パノラマ動画1を再生");
+                panoramaManager.ShowPanoramaImage(2);
+                Debug.Log("パノラマ画像3を表示");
                 break;
             case 4:
                 panoramaManager.NextImage();
                 Debug.Log("次の画像に切り替え");
                 break;
             case 5:
-                panoramaManager.ToggleVideoPause();
-                Debug.Log("動画の一時停止/再生");
+                panoramaManager.PreviousImage();
+                Debug.Log("前の画像に切り替え");
                 break;
             case 6:
                 panoramaManager.SetDefaultSkybox();
                 Debug.Log("デフォルトSkyboxに戻す");
                 break;
-            default:
-                Debug.Log($"未定義のボタン: {buttonIndex}");
+        }
+    }
+    
+    void HandleCenterPanelClick(int buttonIndex)
+    {
+        // 中央パネル: パノラマ動画関連
+        int localIndex = (buttonIndex - 7) % 6 + 1;
+        switch (localIndex)
+        {
+            case 1:
+                panoramaManager.ShowPanoramaVideo(0);
+                Debug.Log("パノラマ動画1を再生");
+                break;
+            case 2:
+                if (panoramaManager.PanoramaVideoCount > 1)
+                    panoramaManager.ShowPanoramaVideo(1);
+                Debug.Log("パノラマ動画2を再生");
+                break;
+            case 3:
+                panoramaManager.ToggleVideoPause();
+                Debug.Log("動画の一時停止/再生");
+                break;
+            case 4:
+                Debug.Log("動画を停止");
+                break;
+            case 5:
+                Debug.Log("音量調整");
+                break;
+            case 6:
+                Debug.Log("動画情報表示");
+                break;
+        }
+    }
+    
+    void HandleRightPanelClick(int buttonIndex)
+    {
+        // 右パネル: システム操作
+        int localIndex = (buttonIndex - 13) % 6 + 1;
+        switch (localIndex)
+        {
+            case 1:
+                Debug.Log("設定メニューを開く");
+                break;
+            case 2:
+                Debug.Log("ヘルプを表示");
+                break;
+            case 3:
+                Debug.Log("ファイルブラウザーを開く");
+                break;
+            case 4:
+                Debug.Log("アプリケーションを終了");
+                break;
+            case 5:
+                Debug.Log("リセット");
+                break;
+            case 6:
+                Debug.Log("情報表示");
                 break;
         }
     }
