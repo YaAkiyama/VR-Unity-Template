@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System.IO;
 
 /// <summary>
 /// 柔軟なUIパネルシステム
@@ -13,7 +14,7 @@ public class UISetup : MonoBehaviour
     [SerializeField] private int panelCount = 3; // パネルの数
     [SerializeField] private float panelSpacing = 0f; // 3パネル時は固定位置を使用
     [SerializeField] private bool alwaysFaceCamera = true; // 常にカメラを向く
-    [SerializeField] private float distanceFromCamera = 3.0f; // カメラからの距離
+    [SerializeField] private float distanceFromCamera = 4.5f; // カメラからの距離を増加
     
     [Header("Canvas設定")]
     [SerializeField] private Vector2 canvasSize = new Vector2(3f, 2f);
@@ -30,6 +31,7 @@ public class UISetup : MonoBehaviour
     private List<Transform> panelTransforms = new List<Transform>();
     private Camera mainCamera;
     private PanoramaSkyboxManager panoramaManager;
+    private FileExplorerManager fileExplorerManager;
     
     void Start()
     {
@@ -62,6 +64,15 @@ public class UISetup : MonoBehaviour
         if (panoramaManager == null)
         {
             Debug.LogWarning("[UISetup] PanoramaSkyboxManagerが見つかりません。パノラマ機能は無効です。");
+        }
+        
+        // FileExplorerManagerを取得または作成
+        fileExplorerManager = FindObjectOfType<FileExplorerManager>();
+        if (fileExplorerManager == null)
+        {
+            GameObject fileExplorerGO = new GameObject("FileExplorerManager");
+            fileExplorerManager = fileExplorerGO.AddComponent<FileExplorerManager>();
+            Debug.Log("[UISetup] FileExplorerManagerを作成しました");
         }
         
         CreateFlexiblePanels(); // 柔軟なパネルシステムを作成
@@ -194,7 +205,7 @@ public class UISetup : MonoBehaviour
                 case 0: // LeftPanel
                     return new Vector3(-2.8f, 0, 1.3f);   // X:-2.8, Z:1.3
                 case 1: // CenterPanel  
-                    return new Vector3(0, 0, 3.0f);       // X:0, Z:3.0 前方中央
+                    return new Vector3(0, 0, 4.5f);       // X:0, Z:4.5 前方中央（距離増加）
                 case 2: // RightPanel
                     return new Vector3(2.8f, 0, 1.3f);    // X:2.8, Z:1.3
             }
@@ -426,7 +437,15 @@ public class UISetup : MonoBehaviour
     
     void CreateButtonsForPanel(Transform parent, int panelIndex)
     {
-        // ボタンコンテナ作成
+        // 中央パネル（インデックス1）の場合はファイルエクスプローラーを作成
+        if (panelIndex == 1)
+        {
+            Debug.Log("[UISetup] 中央パネルにシンプルなファイルエクスプローラーを作成");
+            CreateSimpleFileExplorer(parent);
+            return;
+        }
+        
+        // 他のパネル（左・右）は従来のボタンを作成
         GameObject buttonContainer = new GameObject("ButtonContainer");
         buttonContainer.transform.SetParent(parent);
         
@@ -673,4 +692,53 @@ public class UISetup : MonoBehaviour
             DestroyImmediate(canvasCollider);
         }
     }
+    
+    
+    void CreateSimpleFileExplorer(Transform parent)
+    {
+        Debug.Log("[UISetup] 実際のFileExplorerManagerを使用してファイルエクスプローラーを作成");
+        
+        // FileExplorerManagerを使用して実際のファイルシステムUI作成
+        if (fileExplorerManager != null)
+        {
+            fileExplorerManager.SetupFileExplorerUI(parent);
+            Debug.Log("[UISetup] FileExplorerManagerによるUI作成完了");
+        }
+        else
+        {
+            Debug.LogError("[UISetup] FileExplorerManagerが見つかりません");
+            
+            // フォールバック: シンプルなエラーメッセージ表示
+            GameObject errorContainer = new GameObject("FileExplorerError");
+            errorContainer.transform.SetParent(parent);
+            
+            RectTransform errorRect = errorContainer.AddComponent<RectTransform>();
+            errorRect.anchorMin = Vector2.zero;
+            errorRect.anchorMax = Vector2.one;
+            errorRect.sizeDelta = Vector2.zero;
+            errorRect.anchoredPosition = Vector2.zero;
+            errorRect.localScale = Vector3.one;
+            
+            Image bgImage = errorContainer.AddComponent<Image>();
+            bgImage.color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
+            
+            GameObject textGO = new GameObject("ErrorText");
+            textGO.transform.SetParent(errorContainer.transform);
+            
+            RectTransform textRect = textGO.AddComponent<RectTransform>();
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.sizeDelta = Vector2.zero;
+            textRect.anchoredPosition = Vector2.zero;
+            textRect.localScale = Vector3.one;
+            
+            TextMeshProUGUI errorText = textGO.AddComponent<TextMeshProUGUI>();
+            errorText.text = "FileExplorerManager\nが見つかりません";
+            errorText.fontSize = 6f;
+            errorText.color = Color.red;
+            errorText.alignment = TextAlignmentOptions.Center;
+            errorText.enableWordWrapping = true;
+        }
+    }
+    
 }

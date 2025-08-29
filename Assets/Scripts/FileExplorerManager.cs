@@ -552,7 +552,21 @@ public class FileExplorerManager : MonoBehaviour
             TextMeshProUGUI pathText = pathBar.GetComponent<TextMeshProUGUI>();
             if (pathText != null)
             {
-                pathText.text = "Network"; // サンプル画像に合わせて固定表示
+                // 実際の現在パスを表示
+                string displayPath = currentPath;
+                
+                // Assetsフォルダ以下の場合は相対パスで表示
+                if (currentPath.Contains("Assets"))
+                {
+                    int assetsIndex = currentPath.IndexOf("Assets");
+                    if (assetsIndex >= 0)
+                    {
+                        displayPath = currentPath.Substring(assetsIndex).Replace("\\", "/");
+                    }
+                }
+                
+                pathText.text = displayPath;
+                Debug.Log($"[FileExplorerManager] パスバー更新: {displayPath}");
             }
         }
     }
