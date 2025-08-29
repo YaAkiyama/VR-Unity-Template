@@ -141,32 +141,49 @@ public class FileExplorerManager : MonoBehaviour
     /// </summary>
     public void SetupFileExplorerUI(Transform panelTransform)
     {
+        Debug.Log("[FileExplorerManager] SetupFileExplorerUI開始");
         centerPanel = panelTransform;
+        Debug.Log($"[FileExplorerManager] centerPanel設定完了: {centerPanel?.name}");
         
         // 初期化がまだなら実行
         if (string.IsNullOrEmpty(currentPath))
         {
+            Debug.Log("[FileExplorerManager] 初期化を実行");
             InitializeFileExplorer();
         }
+        Debug.Log($"[FileExplorerManager] currentPath: {currentPath}");
         
+        Debug.Log("[FileExplorerManager] CreateFileExplorerUI呼び出し");
         CreateFileExplorerUI();
+        Debug.Log("[FileExplorerManager] NavigateToPath呼び出し");
         NavigateToPath(currentPath);
+        Debug.Log("[FileExplorerManager] SetupFileExplorerUI完了");
     }
     
     void CreateFileExplorerUI()
     {
-        if (centerPanel == null) return;
+        Debug.Log("[FileExplorerManager] CreateFileExplorerUI開始");
+        
+        if (centerPanel == null) 
+        {
+            Debug.LogError("[FileExplorerManager] centerPanelがnullです");
+            return;
+        }
+        
+        Debug.Log($"[FileExplorerManager] centerPanel: {centerPanel.name}");
         
         // 既存のボタンコンテナを削除
         Transform existingContainer = centerPanel.Find("ButtonContainer");
         if (existingContainer != null)
         {
+            Debug.Log("[FileExplorerManager] 既存のButtonContainerを削除");
             DestroyImmediate(existingContainer.gameObject);
         }
         
         // ファイルエクスプローラーコンテナ作成
         GameObject explorerContainer = new GameObject("FileExplorerContainer");
         explorerContainer.transform.SetParent(centerPanel);
+        Debug.Log("[FileExplorerManager] FileExplorerContainer作成完了");
         
         RectTransform containerRect = explorerContainer.AddComponent<RectTransform>();
         containerRect.anchorMin = Vector2.zero;
@@ -177,20 +194,26 @@ public class FileExplorerManager : MonoBehaviour
         containerRect.localPosition = Vector3.zero;
         containerRect.localRotation = Quaternion.identity;
         containerRect.localScale = Vector3.one;
+        Debug.Log("[FileExplorerManager] コンテナRect設定完了");
         
         // パスバー作成
+        Debug.Log("[FileExplorerManager] パスバー作成開始");
         CreatePathBar(explorerContainer.transform);
         
         // 戻るボタン作成
+        Debug.Log("[FileExplorerManager] 戻るボタン作成開始");
         CreateBackButton(explorerContainer.transform);
         
         // スクロールビュー作成
+        Debug.Log("[FileExplorerManager] スクロールビュー作成開始");
         CreateScrollView(explorerContainer.transform);
         
         // ボタンテンプレート作成
+        Debug.Log("[FileExplorerManager] ボタンテンプレート作成開始");
         CreateButtonTemplate();
+        Debug.Log($"[FileExplorerManager] ボタンテンプレート作成完了: {buttonTemplate?.name}");
         
-        Debug.Log("[FileExplorerManager] ファイルエクスプローラーUI作成完了");
+        Debug.Log("[FileExplorerManager] CreateFileExplorerUI完了");
     }
     
     void CreatePathBar(Transform parent)
@@ -420,10 +443,19 @@ public class FileExplorerManager : MonoBehaviour
     
     void RefreshFileList()
     {
-        if (content == null) return;
+        Debug.Log($"[FileExplorerManager] RefreshFileList開始 - currentPath: {currentPath}");
+        Debug.Log($"[FileExplorerManager] content null? {content == null}");
+        
+        if (content == null) 
+        {
+            Debug.LogError("[FileExplorerManager] contentがnullです");
+            return;
+        }
         
         // 既存のボタンを削除
-        for (int i = content.childCount - 1; i >= 0; i--)
+        int childCount = content.childCount;
+        Debug.Log($"[FileExplorerManager] 既存の子要素数: {childCount}");
+        for (int i = childCount - 1; i >= 0; i--)
         {
             DestroyImmediate(content.GetChild(i).gameObject);
         }
@@ -432,69 +464,123 @@ public class FileExplorerManager : MonoBehaviour
         
         try
         {
+            Debug.Log($"[FileExplorerManager] ディレクトリ存在確認: {Directory.Exists(currentPath)}");
+            
+            if (!Directory.Exists(currentPath))
+            {
+                Debug.LogError($"[FileExplorerManager] ディレクトリが存在しません: {currentPath}");
+                return;
+            }
+            
             // フォルダを追加
             string[] directories = Directory.GetDirectories(currentPath);
+            Debug.Log($"[FileExplorerManager] 発見したフォルダ数: {directories.Length}");
             foreach (string dir in directories)
             {
+                string dirName = Path.GetFileName(dir);
+                Debug.Log($"[FileExplorerManager] フォルダ追加: {dirName}");
                 items.Add(dir);
             }
             
             // サポートされているファイルを追加
             string[] files = Directory.GetFiles(currentPath);
+            Debug.Log($"[FileExplorerManager] 発見したファイル数: {files.Length}");
+            Debug.Log($"[FileExplorerManager] サポート対象拡張子: [{string.Join(", ", supportedExtensions)}]");
+            
             foreach (string file in files)
             {
                 string extension = Path.GetExtension(file).ToLower();
+                string fileName = Path.GetFileName(file);
+                Debug.Log($"[FileExplorerManager] ファイル確認: {fileName} (拡張子: {extension})");
+                
                 if (System.Array.Exists(supportedExtensions, ext => ext == extension))
                 {
+                    Debug.Log($"[FileExplorerManager] サポート対象ファイル追加: {fileName}");
                     items.Add(file);
                 }
+                else
+                {
+                    Debug.Log($"[FileExplorerManager] 非サポートファイル: {fileName}");
+                }
             }
+            
+            Debug.Log($"[FileExplorerManager] 総アイテム数: {items.Count}");
             
             // ボタンを作成
             foreach (string item in items)
             {
+                Debug.Log($"[FileExplorerManager] ボタン作成開始: {Path.GetFileName(item)}");
                 CreateFileButton(item);
             }
             
             // コンテンツサイズを調整
             UpdateContentSize(items.Count);
             
-            Debug.Log($"[FileExplorerManager] {items.Count}個のアイテムを表示: {currentPath}");
-            
-            // デバッグ: 作成されたアイテムのリスト
-            for (int i = 0; i < items.Count && i < 5; i++)
-            {
-                Debug.Log($"[FileExplorerManager] アイテム{i}: {Path.GetFileName(items[i])}");
-            }
+            Debug.Log($"[FileExplorerManager] RefreshFileList完了 - {items.Count}個のアイテムを表示: {currentPath}");
         }
         catch (System.Exception e)
         {
             Debug.LogError($"[FileExplorerManager] ファイル読み込みエラー: {e.Message}");
+            Debug.LogError($"[FileExplorerManager] スタックトレース: {e.StackTrace}");
         }
     }
     
     void CreateFileButton(string itemPath)
     {
+        string fileName = Path.GetFileName(itemPath);
+        Debug.Log($"[FileExplorerManager] CreateFileButton開始: {fileName}");
+        
+        if (buttonTemplate == null)
+        {
+            Debug.LogError("[FileExplorerManager] buttonTemplateがnullです");
+            return;
+        }
+        
+        if (content == null)
+        {
+            Debug.LogError("[FileExplorerManager] contentがnullです");
+            return;
+        }
+        
+        Debug.Log($"[FileExplorerManager] buttonTemplate: {buttonTemplate.name}, content: {content.name}");
+        
         GameObject button = Instantiate(buttonTemplate, content);
         button.SetActive(true);
-        button.name = Path.GetFileName(itemPath);
+        button.name = fileName;
         
         bool isDirectory = Directory.Exists(itemPath);
+        Debug.Log($"[FileExplorerManager] {fileName} - isDirectory: {isDirectory}");
         
         // ボタンの色設定
         Image buttonImage = button.GetComponent<Image>();
+        if (buttonImage == null)
+        {
+            Debug.LogError($"[FileExplorerManager] ボタンのImageコンポーネントがありません: {fileName}");
+            return;
+        }
         buttonImage.color = isDirectory ? folderColor : fileColor;
+        Debug.Log($"[FileExplorerManager] ボタン色設定完了: {fileName}");
         
         // テキスト設定（改善された表示機能）
         TextMeshProUGUI text = button.GetComponentInChildren<TextMeshProUGUI>();
-        string fileName = Path.GetFileName(itemPath);
+        if (text == null)
+        {
+            Debug.LogError($"[FileExplorerManager] ボタンのTextMeshProUGUIコンポーネントがありません: {fileName}");
+            return;
+        }
         text.text = FormatFileName(fileName);
+        Debug.Log($"[FileExplorerManager] テキスト設定完了: {fileName} -> {text.text}");
         
         // クリックイベント
         Button buttonComponent = button.GetComponent<Button>();
+        if (buttonComponent == null)
+        {
+            Debug.LogError($"[FileExplorerManager] ボタンのButtonコンポーネントがありません: {fileName}");
+            return;
+        }
         buttonComponent.onClick.AddListener(() => OnItemClicked(itemPath, isDirectory));
         
-        Debug.Log($"[FileExplorerManager] ボタン作成: {fileName} ({(isDirectory ? "フォルダ" : "ファイル")})");
+        Debug.Log($"[FileExplorerManager] ボタン作成完了: {fileName} ({(isDirectory ? "フォルダ" : "ファイル")})");
     }
     
     void OnItemClicked(string itemPath, bool isDirectory)
