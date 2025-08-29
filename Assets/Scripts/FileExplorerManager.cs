@@ -12,6 +12,7 @@ using UnityEngine.XR.Interaction.Toolkit;
 public class FileExplorerManager : MonoBehaviour
 {
     [Header("ファイルエクスプローラー設定")]
+    [SerializeField] private string defaultFolderPath = "Assets/StreamingAssets";
     [SerializeField] private string[] supportedExtensions = {".jpg", ".png", ".mp4", ".mov"};
     
     [Header("UI設定")]
@@ -45,33 +46,94 @@ public class FileExplorerManager : MonoBehaviour
     
     void InitializeFileExplorer()
     {
-        // 初期パス設定
-        currentPath = Application.streamingAssetsPath;
+        // デフォルトフォルダパスの設定
+        string targetPath = "";
         
-        // StreamingAssetsパスが存在しない場合は作成
-        if (string.IsNullOrEmpty(currentPath))
+        // 相対パスまたは絶対パスを判定
+        if (defaultFolderPath.StartsWith("Assets/StreamingAssets") || defaultFolderPath == "Assets/StreamingAssets")
         {
-            currentPath = Application.dataPath + "/StreamingAssets";
+            // StreamingAssetsを使用
+            targetPath = Application.streamingAssetsPath;
+            
+            // StreamingAssetsパスが空の場合はプロジェクトパスから構築
+            if (string.IsNullOrEmpty(targetPath))
+            {
+                targetPath = Path.Combine(Application.dataPath, "StreamingAssets");
+            }
+            
+            // サブフォルダが指定されている場合
+            if (defaultFolderPath.Length > "Assets/StreamingAssets".Length)
+            {
+                string subPath = defaultFolderPath.Substring("Assets/StreamingAssets".Length).TrimStart('/', '\\');
+                if (!string.IsNullOrEmpty(subPath))
+                {
+                    targetPath = Path.Combine(targetPath, subPath);
+                }
+            }
+        }
+        else if (defaultFolderPath.StartsWith("Assets/"))
+        {
+            // その他のAssetsフォルダ
+            string relativePath = defaultFolderPath.Substring("Assets/".Length);
+            targetPath = Path.Combine(Application.dataPath, relativePath);
+        }
+        else if (Path.IsPathRooted(defaultFolderPath))
+        {
+            // 絶対パス
+            targetPath = defaultFolderPath;
+        }
+        else
+        {
+            // 相対パス（StreamingAssetsからの相対）
+            targetPath = Path.Combine(Application.streamingAssetsPath, defaultFolderPath);
         }
         
-        if (!Directory.Exists(currentPath))
+        // パスが存在しない場合の処理
+        if (!Directory.Exists(targetPath))
         {
-            try
+            // StreamingAssetsフォルダを作成
+            string streamingAssetsPath = Path.Combine(Application.dataPath, "StreamingAssets");
+            if (!Directory.Exists(streamingAssetsPath))
             {
-                Directory.CreateDirectory(currentPath);
-                Debug.Log($"[FileExplorerManager] StreamingAssetsフォルダを作成: {currentPath}");
+                try
+                {
+                    Directory.CreateDirectory(streamingAssetsPath);
+                    Debug.Log($"[FileExplorerManager] StreamingAssetsフォルダを作成: {streamingAssetsPath}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[FileExplorerManager] フォルダ作成エラー: {e.Message}");
+                }
             }
-            catch (System.Exception e)
+            
+            // 指定されたパスも作成を試みる
+            if (targetPath != streamingAssetsPath && !Directory.Exists(targetPath))
             {
-                Debug.LogError($"[FileExplorerManager] フォルダ作成エラー: {e.Message}");
-                currentPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyDocuments);
+                try
+                {
+                    Directory.CreateDirectory(targetPath);
+                    Debug.Log($"[FileExplorerManager] フォルダを作成: {targetPath}");
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[FileExplorerManager] フォルダ作成失敗: {e.Message}");
+                    // フォールバック: StreamingAssetsを使用
+                    targetPath = streamingAssetsPath;
+                }
+            }
+            else if (!Directory.Exists(targetPath))
+            {
+                // それでも存在しない場合はStreamingAssetsにフォールバック
+                targetPath = streamingAssetsPath;
             }
         }
         
-        // ルートパスを設定（戻るボタンの制御に使用）
-        rootPath = currentPath;
+        currentPath = targetPath;
+        rootPath = targetPath;
         
-        Debug.Log($"[FileExplorerManager] 初期化完了 - ルートパス: {rootPath}");
+        Debug.Log($"[FileExplorerManager] 初期化完了");
+        Debug.Log($"  デフォルトパス設定: {defaultFolderPath}");
+        Debug.Log($"  実際のパス: {currentPath}");
     }
     
     /// <summary>
