@@ -14,7 +14,7 @@
     
     <!-- For Android 11+ (API 30+) - All files access permission -->
     <!-- This is a special permission that requires user approval from device settings -->
-    <!-- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" /> -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     
     <!-- VR specific permissions for Meta Quest -->
     <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
