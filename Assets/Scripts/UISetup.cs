@@ -1095,43 +1095,44 @@ public class UISetup : MonoBehaviour
         // ファイルを追加
         try
         {
-            #if UNITY_EDITOR
+            string[] fileNames;
+            
+            // プラットフォーム判定（ランタイム版）
+            if (Application.isEditor)
+            {
                 // エディタでは従来のDirectory.GetFiles使用
                 string[] files = Directory.GetFiles(targetPath);
-                Debug.Log($"[UISetup] ファイル検索結果: {files.Length}個のファイルを発見");
-                
-                foreach (string file in files)
+                fileNames = new string[files.Length];
+                for (int i = 0; i < files.Length; i++)
                 {
-                    string fileName = Path.GetFileName(file);
-                    Debug.Log($"[UISetup] ファイル発見: {fileName}");
-                    
-                    // .metaファイルは除外
-                    if (!fileName.EndsWith(".meta"))
-                    {
-                        items.Add(fileName);
-            #else
-                // 実機ではMediaStore APIを組み合わせたファイル取得を使用
-                string[] fileNames = AndroidFileAccess.GetFilesWithMediaStore(targetPath);
-                Debug.Log($"[UISetup] MediaStore統合ファイル検索結果: {fileNames.Length}個のファイルを発見");
-                
-                foreach (string fileName in fileNames)
-                {
-                    Debug.Log($"[UISetup] ファイル発見: {fileName}");
-                    
-                    // .metaファイルは除外
-                    if (!fileName.EndsWith(".meta"))
-                    {
-                        items.Add(fileName);
-                        isFolder.Add(false);
-                        isParentFolder.Add(false);  // 通常のファイル
-                        Debug.Log($"[UISetup] ファイル追加: {fileName}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[UISetup] .metaファイルをスキップ: {fileName}");
-                    }
+                    fileNames[i] = Path.GetFileName(files[i]);
                 }
-            #endif
+                Debug.Log($"[UISetup] ファイル検索結果: {fileNames.Length}個のファイルを発見");
+            }
+            else
+            {
+                // 実機ではMediaStore APIを組み合わせたファイル取得を使用
+                fileNames = AndroidFileAccess.GetFilesWithMediaStore(targetPath);
+                Debug.Log($"[UISetup] MediaStore統合ファイル検索結果: {fileNames.Length}個のファイルを発見");
+            }
+            
+            foreach (string fileName in fileNames)
+            {
+                Debug.Log($"[UISetup] ファイル発見: {fileName}");
+                
+                // .metaファイルは除外
+                if (!fileName.EndsWith(".meta"))
+                {
+                    items.Add(fileName);
+                    isFolder.Add(false);
+                    isParentFolder.Add(false);  // 通常のファイル
+                    Debug.Log($"[UISetup] ファイル追加: {fileName}");
+                }
+                else
+                {
+                    Debug.Log($"[UISetup] .metaファイルをスキップ: {fileName}");
+                }
+            }
         }
         catch (System.Exception e)
         {
