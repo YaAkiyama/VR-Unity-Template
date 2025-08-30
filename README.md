@@ -1,57 +1,59 @@
 # VR-Unity-Template
 
-MetaQuest3向けVRパノラマビューアーテンプレート
+Meta Quest 3向けVRファイルエクスプローラー
 
 ## 🎯 プロジェクト仕様
 
 ### アプリケーション概要
-- **タイプ**: VRパノラマビューアー
+- **タイプ**: VRファイルエクスプローラー
 - **プラットフォーム**: Meta Quest 3
 - **Unity バージョン**: 2022.3.62f1 LTS
 - **開発ツール**: ClaudeCode + Unity MCP + GitHub MCP
+- **開発ステータス**: 基本機能完成、拡張機能開発準備完了
 
-### 機能仕様
+## ✅ 実装済み機能
 
-#### 1. プレイヤーシステム
-- **位置**: 固定位置（移動不可）
-- **回転**: 360度自由回転（頭の動きに追従）
-- **高さ**: 床から1.6m（調整可能）
+### 1. VRパネルシステム
+- **3パネル構成**: 左・中央・右パネルの配置
+- **カメラ追従**: 常にユーザーの正面を向くUI
+- **柔軟な設計**: パネル数の変更に対応
+- **中央パネル**: ファイルエクスプローラー専用
 
-#### 2. インタラクションシステム
-- **コントローラー**: Quest 3両手コントローラー使用
-- **レーザーポインター**: 
-  - 両手から直線状に表示
-  - 色: 通常時は白、ホバー時は青
-  - 長さ: 10m
-- **UIインタラクション**:
-  - パネルとの交差点にドット表示
-  - ドットサイズ: 直径5cm
-  - トリガーボタンでクリック操作
+### 2. ファイルエクスプローラー（中央パネル）
+- **実際のフォルダ内容表示**: プラットフォーム対応
+  - Unity Editor: `Assets/StreamingAssets`を表示
+  - Meta Quest実機: `Application.persistentDataPath`を使用（サンプル構造を自動作成）
+- **4列グリッドレイアウト**: パーセンテージベースの動的サイズ調整
+- **垂直スクロール**: 15個以上のアイテムに対応
+- **VRコントローラー対応**: 右スティックでスクロール操作
 
-#### 3. UIパネルシステム
-- **配置**: ワールド空間に固定
-- **デフォルト位置**: プレイヤー前方3m、高さ1.5m
-- **サイズ**: 3m × 2m
-- **構成**:
-  ```
-  ┌─────────────────────────────────────┐
-  │  [メニュー]    [コンテンツ]    [情報]  │
-  │  ┌──────┐    ┌──────────┐    ┌────┐ │
-  │  │リスト │    │グリッド   │    │詳細│ │
-  │  └──────┘    └──────────┘    └────┘ │
-  └─────────────────────────────────────┘
-  ```
+### 3. ナビゲーション機能
+- **フォルダクリック**: 黄色いフォルダアイコンクリックで移動
+- **上位フォルダ遷移**: 
+  - **Bボタン**（右・左コントローラー）で`cd ..`相当の操作
+  - **左上「↑」アイコン**クリックで同様の操作
+- **パスバー**: 現在のフォルダパスをリアルタイム表示
 
-#### 4. メディア再生機能
-- **パノラマ画像**:
-  - 対応形式: JPG, PNG
-  - 解像度: 最大8K
-  - 投影方式: Equirectangular
-- **パノラマ動画**:
-  - 対応形式: MP4
-  - 解像度: 最大4K
-  - フレームレート: 30/60fps
-- **切り替え**: フェードイン/アウト（0.5秒）
+### 4. UI/UXの詳細調整
+- **ファイル・フォルダ識別**: 
+  - フォルダ: 黄色背景 (#FFC837)
+  - ファイル: 白色背景
+  - 上位フォルダ: 黄色背景 + 大きめの「↑」テキスト
+- **テキストレイアウト**: 左寄せ、適切なマージン設定
+- **スクロールバー**: 右側配置、細めのハンドル
+- **VR最適化**: 適切なフォントサイズと配色
+
+## 🎮 操作方法
+
+### VRコントローラー
+- **右スティック上下**: ファイルリストのスクロール
+- **Bボタン（右/左）**: 上位フォルダへ移動（`cd ..`）
+- **トリガー**: ファイル・フォルダのクリック
+
+### UI操作
+- **黄色フォルダアイコン**: クリックでフォルダ内に移動
+- **左上「↑」アイコン**: 上位フォルダに移動（Bボタンと同等）
+- **白色ファイルアイコン**: クリックでファイル選択（現在はログ出力）
 
 ## 📋 ClaudeCode開発ルール
 
@@ -108,36 +110,65 @@ MetaQuest3向けVRパノラマビューアーテンプレート
 VR-Unity-Template/
 ├── Assets/
 │   ├── Scripts/
-│   │   ├── Player/           # プレイヤー制御
-│   │   │   └── VRPlayerController.cs
-│   │   ├── UI/              # UIシステム
-│   │   │   ├── LaserPointerController.cs
-│   │   │   ├── UIPanel.cs
-│   │   │   └── UIInteraction.cs
-│   │   ├── Media/           # メディア再生
-│   │   │   ├── PanoramaManager.cs
-│   │   │   └── MediaLoader.cs
-│   │   └── Interaction/     # インタラクション
-│   │       └── InteractionManager.cs
-│   ├── Prefabs/
-│   │   ├── Player/
-│   │   │   └── XROrigin_Fixed.prefab
-│   │   ├── UI/
-│   │   │   ├── MediaPanel.prefab
-│   │   │   └── LaserPointer.prefab
-│   │   └── Media/
-│   │       └── PanoramaSphere.prefab
-│   ├── Materials/
-│   │   ├── Skybox/
-│   │   └── UI/
-│   ├── Textures/
-│   └── Media/
-│       ├── Images/          # パノラマ画像
-│       └── Videos/          # パノラマ動画
+│   │   ├── UISetup.cs               # メインのUI制御スクリプト
+│   │   └── VRScrollController.cs    # VRスクロール制御
+│   ├── StreamingAssets/             # エディタ用サンプルデータ
+│   │   ├── Images/
+│   │   ├── Videos/
+│   │   ├── Documents/
+│   │   └── [各種サンプルファイル]
+│   └── Samples/
+│       └── Img/                     # 開発中のスクリーンショット
 ├── Packages/
 ├── ProjectSettings/
 └── .claude/
-    └── mcp.json            # MCP設定
+    └── mcp.json                    # MCP設定
+```
+
+## 💻 重要なクラス
+
+### UISetup.cs
+メインのUI制御クラス（1200+行）。以下の機能を提供：
+
+```csharp
+// ファイルエクスプローラー用の状態管理
+private string currentFolderPath = "";      // 現在のフォルダパス（相対）
+private string baseFolderPath = "";         // ベースフォルダ（絶対）
+private TextMeshProUGUI pathBarText;        // パスバー参照
+private Transform fileButtonsContainer;     // ファイルボタンコンテナ
+
+// VRコントローラー入力の状態管理
+private bool previousBButtonPressed = false;
+private bool previousLeftBButtonPressed = false;
+```
+
+**主要メソッド:**
+- `CreateTestFileButtons()`: 実際のフォルダ内容を読み込んでUI生成
+- `NavigateToFolder(string folderName)`: フォルダ遷移処理
+- `NavigateToParentFolder()`: 上位フォルダ遷移（`cd ..`相当）
+- `CheckNavigationInput()`: VRコントローラーのBボタン監視
+- `RefreshFileList()`: ファイルリストの動的更新
+
+### VRScrollController.cs
+VRコントローラーによるスクロール制御：
+
+```csharp
+[SerializeField] private float scrollSpeed = 2f;
+[SerializeField] private float scrollDeadZone = 0.1f;
+[SerializeField] private bool useRightController = true;
+```
+
+### プラットフォーム対応
+
+```csharp
+#if UNITY_EDITOR
+    // エディタ: Assets/StreamingAssetsを使用
+    baseFolderPath = Path.Combine(Application.dataPath, "StreamingAssets");
+#else
+    // 実機: persistentDataPathを使用（読み書き可能）
+    baseFolderPath = Application.persistentDataPath;
+    CreateSampleFolderStructure(baseFolderPath);  // サンプル構造作成
+#endif
 ```
 
 ## 🔧 技術仕様
@@ -147,6 +178,21 @@ VR-Unity-Template/
 - XR Plugin Management (4.4.0以上)
 - Oculus XR Plugin (4.1.2以上)
 - TextMeshPro (3.0.6以上)
+
+### レイアウト調整可能パラメータ
+```csharp
+[Header("ファイルエクスプローラーレイアウト設定")]
+[SerializeField] private float explorerPaddingPercent = 0.02f;  // パディング: 2%
+[SerializeField] private float explorerMarginPercent = 0.02f;   // マージン: 2%
+[SerializeField] private int explorerColumnsCount = 4;          // 列数: 4個
+```
+
+### スクロール設定
+```csharp
+[Header("スクロール設定")]
+[SerializeField] private float scrollSpeed = 2f;
+[SerializeField] private float scrollDeadZone = 0.1f;
+```
 
 ### Unity設定
 ```yaml
@@ -200,7 +246,59 @@ Oculus Settings:
 - USBデバッグが許可されているか確認
 - adb devicesでデバイス認識を確認
 
+## 🔍 デバッグ情報
+
+### ログ出力例
+```
+[UISetup] ベースフォルダパス設定: /storage/emulated/0/Android/data/com.example.vrfileexplorer/files
+[UISetup] 検出されたアイテム数: 8 (フォルダ: 5, ファイル: 3)
+[UISetup] 上位フォルダアイコンを追加
+[UISetup] フォルダ移動: Images
+[UISetup] 上位フォルダへ移動: '' (ルートに戻る)
+```
+
+## 🚀 ビルドと実行
+
+### Unity Editor
+1. プロジェクトを開く
+2. `Assets/StreamingAssets`に表示したいファイル・フォルダを配置
+3. Play ボタンでエディタ内テスト実行
+
+### Meta Quest 3実機
+1. **Build Settings**:
+   - Platform: Android
+   - Texture Compression: ASTC
+2. **XR Plug-in Management**: OpenXR設定
+3. **Player Settings**: 
+   - Package Name設定
+   - Minimum API Level: Android 7.0以上
+4. Build & Run または APKファイル作成
+
+## 🛠️ 今後の拡張予定
+
+### 短期的な改善
+- [ ] ファイル形式別アイコン表示
+- [ ] ファイル詳細情報表示（サイズ、更新日時）
+- [ ] 並び替え機能（名前、日時、サイズ）
+
+### 中長期的な機能追加
+- [ ] ファイル操作機能（コピー、移動、削除）
+- [ ] 検索・フィルタリング機能
+- [ ] ファイルプレビュー機能
+- [ ] 外部ストレージアクセス
+- [ ] クラウドストレージ連携
+
 ## 📝 開発ログ
+
+### 2025-08-30
+- **VRファイルエクスプローラー基本機能完成**
+- UIパネルシステム実装（3パネル構成、カメラ追従）
+- ファイル・フォルダ表示システム実装（プラットフォーム対応）
+- 4列グリッドレイアウト + 垂直スクロール
+- VRコントローラー操作対応（右スティックスクロール、Bボタンナビゲーション）
+- 上位フォルダ遷移機能（Bボタン + 「↑」アイコン）
+- パスバー + 動的ファイルリスト更新
+- Meta Quest 3実機対応完了
 
 ### 2025-08-21
 - プロジェクト初期設定
@@ -221,16 +319,23 @@ cd VR-Unity-Template
 npx @anthropic-ai/claude-code
 ```
 
-### ClaudeCodeへの初回指示
+### ClaudeCodeへの継承指示
 ```
-GitHub MCPでREADME.mdを取得し、記載されている開発ルールと仕様に従って開発を開始してください。
+GitHub MCPでREADME.mdを取得し、VRファイルエクスプローラーの現在の実装状況を確認してください。
 
-本日の作業：
-1. XR Originの設置（プレイヤー固定）
-2. レーザーポインターの実装
-3. 基本UIパネルの作成
+現在の状態：
+✅ 基本機能完成済み
+- 3パネルVR UI（中央パネル＝ファイルエクスプローラー）
+- 実際のフォルダ内容表示（エディタ・実機対応）
+- 4列グリッドレイアウト + 垂直スクロール
+- VRコントローラー操作（スクロール・ナビゲーション）
+- 上位フォルダ遷移（Bボタン + 「↑」アイコン）
 
-Unity MCPとGitHub MCPを使用してください。
+主要ファイル：
+- Assets/Scripts/UISetup.cs (1200+行)
+- Assets/Scripts/VRScrollController.cs
+
+Unity MCPとGitHub MCPを使用して、拡張機能の開発や改善を継続してください。
 ```
 
 ## 📄 ライセンス

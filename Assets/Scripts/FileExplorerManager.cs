@@ -244,6 +244,10 @@ public class FileExplorerManager : MonoBehaviour
         pathTextRect.anchorMax = Vector2.one;
         pathTextRect.sizeDelta = Vector2.zero;
         pathTextRect.anchoredPosition = Vector2.zero;
+        pathTextRect.anchoredPosition3D = Vector3.zero;
+        pathTextRect.localPosition = Vector3.zero;
+        pathTextRect.localRotation = Quaternion.identity;
+        pathTextRect.localScale = Vector3.one;
         
         TextMeshProUGUI pathText = pathTextGO.AddComponent<TextMeshProUGUI>();
         pathText.text = "Network";
@@ -321,6 +325,7 @@ public class FileExplorerManager : MonoBehaviour
         scrollRect.anchorMax = new Vector2(1f, 0.9f);
         scrollRect.sizeDelta = Vector2.zero;
         scrollRect.anchoredPosition = Vector2.zero;
+        scrollRect.anchoredPosition3D = Vector3.zero;
         scrollRect.localPosition = Vector3.zero;
         scrollRect.localRotation = Quaternion.identity;
         scrollRect.localScale = Vector3.one;
@@ -341,6 +346,10 @@ public class FileExplorerManager : MonoBehaviour
         viewportRect.anchorMax = Vector2.one;
         viewportRect.sizeDelta = Vector2.zero;
         viewportRect.anchoredPosition = Vector2.zero;
+        viewportRect.anchoredPosition3D = Vector3.zero;
+        viewportRect.localPosition = Vector3.zero;
+        viewportRect.localRotation = Quaternion.identity;
+        viewportRect.localScale = Vector3.one;
         
         Image viewportImage = viewport.AddComponent<Image>();
         viewportImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // より見やすい背景色
@@ -359,6 +368,10 @@ public class FileExplorerManager : MonoBehaviour
         contentRect.anchorMax = new Vector2(1f, 1f);
         contentRect.sizeDelta = new Vector2(0f, 200f);
         contentRect.anchoredPosition = Vector2.zero;
+        contentRect.anchoredPosition3D = Vector3.zero;
+        contentRect.localPosition = Vector3.zero;
+        contentRect.localRotation = Quaternion.identity;
+        contentRect.localScale = Vector3.one;
         
         this.content = contentGO.transform;
         this.scrollRect.content = contentRect;
@@ -373,6 +386,8 @@ public class FileExplorerManager : MonoBehaviour
         gridLayout.childAlignment = TextAnchor.UpperCenter;
         gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         gridLayout.constraintCount = columnsPerRow;
+        
+        Debug.Log($"[FileExplorerManager] GridLayout設定 - CellSize: {gridLayout.cellSize}, Spacing: {gridLayout.spacing}");
     }
     
     void CreateButtonTemplate()
@@ -382,6 +397,9 @@ public class FileExplorerManager : MonoBehaviour
         
         RectTransform buttonRect = buttonTemplate.AddComponent<RectTransform>();
         buttonRect.sizeDelta = buttonSize;
+        buttonRect.anchoredPosition = Vector2.zero;
+        buttonRect.anchoredPosition3D = Vector3.zero;
+        buttonRect.localPosition = Vector3.zero;
         buttonRect.localScale = Vector3.one;
         buttonRect.localRotation = Quaternion.identity;
         
@@ -403,6 +421,8 @@ public class FileExplorerManager : MonoBehaviour
         textRect.anchorMax = Vector2.one;
         textRect.sizeDelta = Vector2.zero;
         textRect.anchoredPosition = Vector2.zero;
+        textRect.anchoredPosition3D = Vector3.zero;
+        textRect.localPosition = Vector3.zero;
         textRect.localScale = Vector3.one;
         textRect.localRotation = Quaternion.identity;
         

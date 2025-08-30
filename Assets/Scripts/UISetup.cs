@@ -3,6 +3,8 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
 using System.IO;
+using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit;
 
 /// <summary>
 /// 柔軟なUIパネルシステム
@@ -17,13 +19,18 @@ public class UISetup : MonoBehaviour
     [SerializeField] private float distanceFromCamera = 4.5f; // カメラからの距離を増加
     
     [Header("Canvas設定")]
-    [SerializeField] private Vector2 canvasSize = new Vector2(3f, 2f);
+    [SerializeField] private Vector2 canvasSize = new Vector2(3.5f, 2.5f);
     [SerializeField] private float canvasScale = 0.01f;
     
     [Header("ボタン設定")]
     [SerializeField] private int buttonRows = 2;
     [SerializeField] private int buttonColumns = 3;
     [SerializeField] private float buttonSpacing = 0.1f;
+    
+    [Header("ファイルエクスプローラーレイアウト設定")]
+    [SerializeField] private float explorerPaddingPercent = 0.02f;  // パディング: 2%
+    [SerializeField] private float explorerMarginPercent = 0.02f;   // マージン: 2%
+    [SerializeField] private int explorerColumnsCount = 4;          // 横に並べる数: 4個
     
     // 柔軟なパネル管理
     private List<Canvas> panelCanvases = new List<Canvas>();
@@ -32,6 +39,16 @@ public class UISetup : MonoBehaviour
     private Camera mainCamera;
     private PanoramaSkyboxManager panoramaManager;
     private FileExplorerManager fileExplorerManager;
+    
+    // ファイルエクスプローラー用の状態管理
+    private string currentFolderPath = "";  // 現在表示中のフォルダパス（相対パス）
+    private string baseFolderPath = "";  // ベースフォルダの絶対パス
+    private TextMeshProUGUI pathBarText;  // パスバーのテキスト参照
+    private Transform fileButtonsContainer;  // ファイルボタンのコンテナ参照
+    
+    // VRコントローラー入力の状態管理
+    private bool previousBButtonPressed = false;  // 右コントローラーBボタンの前回の状態
+    private bool previousLeftBButtonPressed = false;  // 左コントローラーBボタンの前回の状態
     
     void Start()
     {
@@ -86,6 +103,9 @@ public class UISetup : MonoBehaviour
         {
             FacePanelsToCamera();
         }
+        
+        // Bボタンで上位フォルダへ遷移
+        CheckNavigationInput();
     }
     
     void ForceAddCollider()
@@ -205,7 +225,7 @@ public class UISetup : MonoBehaviour
                 case 0: // LeftPanel
                     return new Vector3(-2.8f, 0, 1.3f);   // X:-2.8, Z:1.3
                 case 1: // CenterPanel  
-                    return new Vector3(0, 0, 4.5f);       // X:0, Z:4.5 前方中央（距離増加）
+                    return new Vector3(0, 0, 2.8f);       // X:0, Z:2.8 前方中央
                 case 2: // RightPanel
                     return new Vector3(2.8f, 0, 1.3f);    // X:2.8, Z:1.3
             }
@@ -263,15 +283,21 @@ public class UISetup : MonoBehaviour
         
         // CanvasScaler追加
         CanvasScaler scaler = panelGO.AddComponent<CanvasScaler>();
-        scaler.dynamicPixelsPerUnit = 10;
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        scaler.scaleFactor = 1f;
+        scaler.referencePixelsPerUnit = 100f;
+        
+        Debug.Log($"[UISetup] CanvasScaler設定 - ScaleMode: {scaler.uiScaleMode}, ScaleFactor: {scaler.scaleFactor}");
         
         // GraphicRaycaster追加
         GraphicRaycaster raycaster = panelGO.AddComponent<GraphicRaycaster>();
         
-        // Canvas RectTransform設定
+        // Canvas RectTransform設定 - 正常な1:1座標系を使用
         RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-        canvasRect.sizeDelta = canvasSize * 100f;
-        canvasRect.localScale = Vector3.one * canvasScale;
+        canvasRect.sizeDelta = canvasSize * 100f;  // Canvas内部のピクセル解像度
+        canvasRect.localScale = Vector3.one * canvasScale;  // 最終的なワールドスケール
+        
+        Debug.Log($"[UISetup] Canvas設定 - sizeDelta: {canvasRect.sizeDelta}, localScale: {canvasRect.localScale}");
         
         // リストに追加
         panelCanvases.Add(canvas);
@@ -696,49 +722,629 @@ public class UISetup : MonoBehaviour
     
     void CreateSimpleFileExplorer(Transform parent)
     {
-        Debug.Log("[UISetup] 実際のFileExplorerManagerを使用してファイルエクスプローラーを作成");
+        Debug.Log("[UISetup] テスト用ファイルエクスプローラーを作成");
         
-        // FileExplorerManagerを使用して実際のファイルシステムUI作成
-        if (fileExplorerManager != null)
+        // テスト用のファイルエクスプローラーコンテナ作成
+        GameObject explorerContainer = new GameObject("TestFileExplorerContainer");
+        explorerContainer.transform.SetParent(parent);
+        
+        RectTransform containerRect = explorerContainer.AddComponent<RectTransform>();
+        containerRect.anchorMin = Vector2.zero;
+        containerRect.anchorMax = Vector2.one;
+        containerRect.sizeDelta = Vector2.zero;
+        containerRect.anchoredPosition = Vector2.zero;
+        containerRect.anchoredPosition3D = Vector3.zero;
+        containerRect.localPosition = Vector3.zero;
+        containerRect.localRotation = Quaternion.identity;
+        containerRect.localScale = Vector3.one;
+        
+        // テスト用パスバー作成
+        CreateTestPathBar(explorerContainer.transform);
+        
+        // テスト用スクロールビュー作成
+        CreateTestScrollView(explorerContainer.transform);
+    }
+    
+    void CreateTestPathBar(Transform parent)
+    {
+        GameObject pathBar = new GameObject("TestPathBar");
+        pathBar.transform.SetParent(parent);
+        
+        RectTransform pathRect = pathBar.AddComponent<RectTransform>();
+        // 上端に固定、高さ18ピクセル（フォントサイズ10に適した高さ）
+        pathRect.anchorMin = new Vector2(0f, 1f);
+        pathRect.anchorMax = new Vector2(1f, 1f);
+        pathRect.pivot = new Vector2(0.5f, 1f);
+        pathRect.sizeDelta = new Vector2(0f, 18f);
+        pathRect.anchoredPosition = new Vector2(0f, 0f);
+        
+        // 明示的にlocalPositionをリセット（Z軸の問題を防ぐ）
+        pathRect.localPosition = new Vector3(pathRect.localPosition.x, pathRect.localPosition.y, 0f);
+        pathRect.localRotation = Quaternion.identity;
+        pathRect.localScale = Vector3.one;
+        
+        // 背景（少し濃くして視認性を向上）
+        Image pathBg = pathBar.AddComponent<Image>();
+        pathBg.color = new Color(0.15f, 0.15f, 0.15f, 0.9f);
+        
+        Debug.Log($"[UISetup] TestPathBar配置 - AnchoredPos: {pathRect.anchoredPosition}, LocalPos: {pathRect.localPosition}, SizeDelta: {pathRect.sizeDelta}");
+        
+        // パステキスト
+        GameObject pathTextGO = new GameObject("TestPathText");
+        pathTextGO.transform.SetParent(pathBar.transform);
+        
+        RectTransform pathTextRect = pathTextGO.AddComponent<RectTransform>();
+        pathTextRect.anchorMin = Vector2.zero;
+        pathTextRect.anchorMax = Vector2.one;
+        pathTextRect.sizeDelta = Vector2.zero;
+        pathTextRect.anchoredPosition = new Vector2(0f, -9f);  // パスバーの高さ(18px)の半分下げる
+        pathTextRect.anchoredPosition3D = new Vector3(0f, -9f, 0f);
+        pathTextRect.localPosition = new Vector3(0f, -9f, 0f);
+        pathTextRect.localRotation = Quaternion.identity;
+        pathTextRect.localScale = Vector3.one;
+        
+        TextMeshProUGUI pathText = pathTextGO.AddComponent<TextMeshProUGUI>();
+        // プラットフォームに応じた表示
+        #if UNITY_EDITOR
+            pathText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+        #else
+            pathText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+        #endif
+        pathText.fontSize = 10f;  // 視認性を考慮して大きくする
+        pathText.color = Color.white;
+        pathText.alignment = TextAlignmentOptions.Left;  // 水平左揃え
+        pathText.verticalAlignment = VerticalAlignmentOptions.Middle;  // 垂直中央揃え
+        
+        // パスバーテキストの参照を保存
+        pathBarText = pathText;
+        pathText.margin = new Vector4(8f, 0f, 8f, 0f);  // 左右マージンのみ、上下は0
+        pathText.enableWordWrapping = false;
+        pathText.overflowMode = TextOverflowModes.Ellipsis;
+    }
+    
+    void CreateTestScrollView(Transform parent)
+    {
+        // CenterPanelのサイズを取得（canvasSize.x * 100 = 実際の幅）
+        float panelWidth = canvasSize.x * 100f;  // CenterPanelの実際の幅
+        
+        // スクロールバーの幅を定義
+        float scrollbarWidth = 10f;  // スクロールバーの幅
+        float scrollbarSpacing = 3f;  // スクロールバーとコンテンツの間隔
+        
+        // 実際に使用可能な幅（スクロールバー分を除く）
+        float usableWidth = panelWidth - scrollbarWidth - scrollbarSpacing;
+        
+        // パーセンテージベースの計算（SerializeFieldから取得）
+        float paddingPercent = explorerPaddingPercent;
+        float marginPercent = explorerMarginPercent;
+        int columnsCount = explorerColumnsCount;
+        
+        // アイコンサイズを計算して指定個数がぴったり収まるようにする
+        // 使用可能幅 = パディング左 + (アイコン幅×N + マージン×(N-1)) + パディング右
+        float availableWidthPercent = 1.0f - (paddingPercent * 2);
+        float totalMarginPercent = marginPercent * (columnsCount - 1);
+        float iconSizePercent = (availableWidthPercent - totalMarginPercent) / columnsCount;
+        
+        // 実際のピクセル値を計算（使用可能幅を基準に）
+        float paddingSize = usableWidth * paddingPercent;
+        float iconSize = usableWidth * iconSizePercent;
+        float marginSize = usableWidth * marginPercent;
+        
+        Debug.Log($"[UISetup] ファイルエクスプローラーレイアウト計算:");
+        Debug.Log($"  - CenterPanel幅: {panelWidth}px");
+        Debug.Log($"  - スクロールバー幅: {scrollbarWidth}px + 間隔: {scrollbarSpacing}px");
+        Debug.Log($"  - 使用可能幅: {usableWidth}px");
+        Debug.Log($"  - パディング: {paddingSize:F1}px ({paddingPercent*100:F1}%)");
+        Debug.Log($"  - アイコンサイズ: {iconSize:F1}px ({iconSizePercent*100:F1}%)");
+        Debug.Log($"  - マージン: {marginSize:F1}px ({marginPercent*100:F1}%)");
+        Debug.Log($"  - 横に並ぶ数: {columnsCount}個");
+        
+        // スクロールビュー作成（パスバーの下に配置）
+        GameObject scrollView = new GameObject("TestScrollView");
+        scrollView.transform.SetParent(parent);
+        
+        RectTransform scrollRect = scrollView.AddComponent<RectTransform>();
+        // パスバーの下（18ピクセル下）から下端まで
+        scrollRect.anchorMin = new Vector2(0f, 0f);
+        scrollRect.anchorMax = new Vector2(1f, 1f);
+        scrollRect.pivot = new Vector2(0.5f, 0.5f);
+        scrollRect.offsetMin = new Vector2(0f, 0f);     // Left=0, Bottom=0
+        scrollRect.offsetMax = new Vector2(0f, -18f);   // Right=0, Top=-18（パスバーの高さ分）
+        
+        // localPositionを明示的に設定
+        scrollRect.anchoredPosition = Vector2.zero;
+        scrollRect.localPosition = new Vector3(0f, -9f, 0f); // Y位置を調整（パスバー高さの半分）
+        scrollRect.localRotation = Quaternion.identity;
+        scrollRect.localScale = Vector3.one;
+        
+        // ScrollRectコンポーネント
+        ScrollRect scrollRectComponent = scrollView.AddComponent<ScrollRect>();
+        scrollRectComponent.horizontal = false;
+        scrollRectComponent.vertical = true;
+        scrollRectComponent.movementType = ScrollRect.MovementType.Elastic;
+        scrollRectComponent.elasticity = 0.1f;
+        scrollRectComponent.scrollSensitivity = 30f;
+        scrollRectComponent.inertia = true;
+        scrollRectComponent.decelerationRate = 0.135f;
+        
+        // VRコントローラースクロール機能を追加
+        VRScrollController vrScrollController = scrollView.AddComponent<VRScrollController>();
+        Debug.Log("[UISetup] VRScrollControllerを追加しました");
+        
+        // 縦スクロールバーを作成
+        GameObject verticalScrollbar = new GameObject("VerticalScrollbar");
+        verticalScrollbar.transform.SetParent(scrollView.transform);
+        
+        RectTransform scrollbarRect = verticalScrollbar.AddComponent<RectTransform>();
+        scrollbarRect.anchorMin = new Vector2(1f, 0f);
+        scrollbarRect.anchorMax = new Vector2(1f, 1f);
+        scrollbarRect.pivot = new Vector2(1f, 0.5f);
+        scrollbarRect.sizeDelta = new Vector2(scrollbarWidth, 0f);
+        scrollbarRect.anchoredPosition = new Vector2(-2f, 0f);
+        scrollbarRect.localPosition = new Vector3(scrollbarRect.localPosition.x, scrollbarRect.localPosition.y, 0f);
+        scrollbarRect.localRotation = Quaternion.identity;
+        scrollbarRect.localScale = Vector3.one;
+        
+        Image scrollbarBg = verticalScrollbar.AddComponent<Image>();
+        scrollbarBg.color = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+        
+        Scrollbar scrollbarComponent = verticalScrollbar.AddComponent<Scrollbar>();
+        scrollbarComponent.direction = Scrollbar.Direction.BottomToTop;
+        
+        // スクロールバーハンドル
+        GameObject scrollbarHandle = new GameObject("Handle");
+        scrollbarHandle.transform.SetParent(verticalScrollbar.transform);
+        
+        RectTransform handleRect = scrollbarHandle.AddComponent<RectTransform>();
+        handleRect.anchorMin = Vector2.zero;
+        handleRect.anchorMax = Vector2.one;
+        handleRect.sizeDelta = Vector2.zero;
+        handleRect.anchoredPosition = Vector2.zero;
+        handleRect.localPosition = Vector3.zero;
+        handleRect.localRotation = Quaternion.identity;
+        handleRect.localScale = Vector3.one;
+        
+        // ハンドルを細くするために左側にマージンを設定
+        handleRect.offsetMin = new Vector2(4f, 0f);  // Left (0.4 * 10), Bottom
+        handleRect.offsetMax = new Vector2(0f, 0f);  // Right, Top
+        
+        Image handleImage = scrollbarHandle.AddComponent<Image>();
+        handleImage.color = new Color(0.8f, 0.8f, 0.8f, 0.8f);
+        
+        scrollbarComponent.targetGraphic = handleImage;
+        scrollbarComponent.handleRect = handleRect;
+        scrollbarComponent.size = 0.3f;
+        
+        // ScrollRectにスクロールバーを接続
+        scrollRectComponent.verticalScrollbar = scrollbarComponent;
+        scrollRectComponent.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+        scrollRectComponent.verticalScrollbarSpacing = -scrollbarSpacing;
+        
+        // ビューポート
+        GameObject viewport = new GameObject("TestViewport");
+        viewport.transform.SetParent(scrollView.transform);
+        
+        RectTransform viewportRect = viewport.AddComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.sizeDelta = Vector2.zero;
+        viewportRect.anchoredPosition = Vector2.zero;
+        viewportRect.anchoredPosition3D = Vector3.zero;
+        viewportRect.localPosition = Vector3.zero;
+        viewportRect.localRotation = Quaternion.identity;
+        viewportRect.localScale = Vector3.one;
+        
+        Image viewportImage = viewport.AddComponent<Image>();
+        viewportImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        
+        Mask viewportMask = viewport.AddComponent<Mask>();
+        viewportMask.showMaskGraphic = false;
+        
+        scrollRectComponent.viewport = viewportRect;
+        
+        // コンテント
+        GameObject contentGO = new GameObject("TestContent");
+        contentGO.transform.SetParent(viewport.transform);
+        
+        RectTransform contentRect = contentGO.AddComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);  // 上部を基準にする
+        contentRect.sizeDelta = new Vector2(0f, 0f);  // 初期サイズは0（ContentSizeFitterが自動調整）
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.anchoredPosition3D = Vector3.zero;
+        contentRect.localPosition = Vector3.zero;
+        contentRect.localRotation = Quaternion.identity;
+        contentRect.localScale = Vector3.one;
+        
+        scrollRectComponent.content = contentRect;
+        
+        // ContentSizeFitterを追加して自動的にコンテンツサイズを調整
+        ContentSizeFitter contentSizeFitter = contentGO.AddComponent<ContentSizeFitter>();
+        contentSizeFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        contentSizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        
+        // GridLayoutGroup
+        GridLayoutGroup gridLayout = contentGO.AddComponent<GridLayoutGroup>();
+        gridLayout.cellSize = new Vector2(iconSize, iconSize);  // アイコンサイズ: 20%
+        gridLayout.spacing = new Vector2(marginSize, marginSize);      // マージン: 2%
+        gridLayout.padding = new RectOffset((int)paddingSize, (int)paddingSize, (int)paddingSize, (int)paddingSize); // パディング: 2%
+        gridLayout.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        gridLayout.startAxis = GridLayoutGroup.Axis.Horizontal;
+        gridLayout.childAlignment = TextAnchor.UpperLeft;
+        gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gridLayout.constraintCount = columnsCount;  // 横に指定個数並べる
+        
+        // コンテナの参照を保存
+        fileButtonsContainer = contentGO.transform;
+        
+        // テストデータでファイル・フォルダボタンを作成（サイズ情報を渡す）
+        CreateTestFileButtons(contentGO.transform, iconSize);
+        
+        Debug.Log("[UISetup] テスト用ファイルエクスプローラー作成完了");
+    }
+    
+    void CreateTestFileButtons(Transform parent, float iconSize)
+    {
+        // プラットフォームに応じて適切なパスを設定
+        string targetPath;
+        
+        if (string.IsNullOrEmpty(baseFolderPath))
         {
-            fileExplorerManager.SetupFileExplorerUI(parent);
-            Debug.Log("[UISetup] FileExplorerManagerによるUI作成完了");
+            // 初回実行時：ベースパスを設定
+            #if UNITY_EDITOR
+                // エディタではStreamingAssetsを使用
+                baseFolderPath = Path.Combine(Application.dataPath, "StreamingAssets");
+                targetPath = baseFolderPath;
+            #else
+                // 実機ではPersistentDataPathを使用（読み書き可能）
+                baseFolderPath = Application.persistentDataPath;
+                targetPath = baseFolderPath;
+                
+                // サンプルフォルダ構造を作成（初回のみ）
+                CreateSampleFolderStructure(baseFolderPath);
+            #endif
+            
+            Debug.Log($"[UISetup] ベースフォルダパス設定: {baseFolderPath}");
         }
         else
         {
-            Debug.LogError("[UISetup] FileExplorerManagerが見つかりません");
-            
-            // フォールバック: シンプルなエラーメッセージ表示
-            GameObject errorContainer = new GameObject("FileExplorerError");
-            errorContainer.transform.SetParent(parent);
-            
-            RectTransform errorRect = errorContainer.AddComponent<RectTransform>();
-            errorRect.anchorMin = Vector2.zero;
-            errorRect.anchorMax = Vector2.one;
-            errorRect.sizeDelta = Vector2.zero;
-            errorRect.anchoredPosition = Vector2.zero;
-            errorRect.localScale = Vector3.one;
-            
-            Image bgImage = errorContainer.AddComponent<Image>();
-            bgImage.color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
-            
-            GameObject textGO = new GameObject("ErrorText");
-            textGO.transform.SetParent(errorContainer.transform);
-            
-            RectTransform textRect = textGO.AddComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.sizeDelta = Vector2.zero;
-            textRect.anchoredPosition = Vector2.zero;
-            textRect.localScale = Vector3.one;
-            
-            TextMeshProUGUI errorText = textGO.AddComponent<TextMeshProUGUI>();
-            errorText.text = "FileExplorerManager\nが見つかりません";
-            errorText.fontSize = 6f;
-            errorText.color = Color.red;
-            errorText.alignment = TextAlignmentOptions.Center;
-            errorText.enableWordWrapping = true;
+            // ベースパスに相対パスを結合
+            targetPath = string.IsNullOrEmpty(currentFolderPath) 
+                ? baseFolderPath 
+                : Path.Combine(baseFolderPath, currentFolderPath);
         }
+        
+        // フォルダが存在しない場合は作成
+        if (!Directory.Exists(targetPath))
+        {
+            Directory.CreateDirectory(targetPath);
+            Debug.Log($"[UISetup] フォルダを作成: {targetPath}");
+        }
+        
+        Debug.Log($"[UISetup] フォルダ内容を読み込み: {targetPath}");
+        
+        List<string> items = new List<string>();
+        List<bool> isFolder = new List<bool>();
+        List<bool> isParentFolder = new List<bool>();  // 上位フォルダフラグ
+        
+        // 上位フォルダがある場合は「↑」アイコンを最初に追加
+        if (!string.IsNullOrEmpty(currentFolderPath))
+        {
+            items.Add("↑");
+            isFolder.Add(true);
+            isParentFolder.Add(true);
+            Debug.Log("[UISetup] 上位フォルダアイコンを追加");
+        }
+        
+        // フォルダを先に追加
+        string[] directories = Directory.GetDirectories(targetPath);
+        foreach (string dir in directories)
+        {
+            string dirName = Path.GetFileName(dir);
+            // .metaファイルのフォルダは除外
+            if (!dirName.EndsWith(".meta"))
+            {
+                items.Add(dirName);
+                isFolder.Add(true);
+                isParentFolder.Add(false);  // 通常のフォルダ
+            }
+        }
+        
+        // ファイルを追加
+        string[] files = Directory.GetFiles(targetPath);
+        foreach (string file in files)
+        {
+            string fileName = Path.GetFileName(file);
+            // .metaファイルは除外
+            if (!fileName.EndsWith(".meta"))
+            {
+                items.Add(fileName);
+                isFolder.Add(false);
+                isParentFolder.Add(false);  // 通常のファイル
+            }
+        }
+        
+        Debug.Log($"[UISetup] 検出されたアイテム数: {items.Count} (フォルダ: {directories.Length}, ファイル: {files.Length})");
+        
+        // ボタンを作成
+        for (int i = 0; i < items.Count; i++)
+        {
+            CreateTestFileButton(parent, items[i], isFolder[i], iconSize, isParentFolder[i]);
+        }
+    }
+    
+    void CreateTestFileButton(Transform parent, string itemName, bool isDirectory, float iconSize, bool isParentFolder = false)
+    {
+        GameObject button = new GameObject(itemName);
+        button.transform.SetParent(parent);
+        
+        RectTransform buttonRect = button.AddComponent<RectTransform>();
+        buttonRect.sizeDelta = new Vector2(iconSize, iconSize);  // 動的アイコンサイズ
+        buttonRect.anchoredPosition = Vector2.zero;
+        buttonRect.anchoredPosition3D = Vector3.zero;
+        buttonRect.localPosition = Vector3.zero;
+        buttonRect.localScale = Vector3.one;
+        buttonRect.localRotation = Quaternion.identity;
+        
+        Button buttonComponent = button.AddComponent<Button>();
+        Image buttonImage = button.AddComponent<Image>();
+        buttonImage.color = isDirectory ? new Color(1f, 0.8f, 0.2f, 1f) : new Color(0.9f, 0.9f, 0.9f, 1f); // フォルダは黄色、ファイルは白
+        
+        // VRインタラクション用のコライダーを追加
+        BoxCollider buttonCollider = button.AddComponent<BoxCollider>();
+        buttonCollider.size = new Vector3(iconSize, iconSize, 1f);  // 動的コライダーサイズ
+        buttonCollider.isTrigger = false;
+        
+        // ボタンテキスト
+        GameObject textGO = new GameObject("Text");
+        textGO.transform.SetParent(button.transform);
+        
+        RectTransform textRect = textGO.AddComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.sizeDelta = Vector2.zero;
+        textRect.anchoredPosition = Vector2.zero;
+        // テキストマージンの設定
+        if (isParentFolder)
+        {
+            // 上位フォルダアイコンは中央配置なのでマージン不要
+            textRect.offsetMin = Vector2.zero;
+            textRect.offsetMax = Vector2.zero;
+        }
+        else
+        {
+            // 通常のファイル・フォルダは左右に同量のマージンを追加（アイコンサイズの5%）
+            float margin = iconSize * 0.05f;
+            textRect.offsetMin = new Vector2(margin, 0f);
+            textRect.offsetMax = new Vector2(-margin, 0f);
+        }
+        textRect.anchoredPosition3D = Vector3.zero;
+        textRect.localPosition = Vector3.zero;
+        textRect.localScale = Vector3.one;
+        textRect.localRotation = Quaternion.identity;
+        
+        TextMeshProUGUI text = textGO.AddComponent<TextMeshProUGUI>();
+        text.text = itemName;
+        
+        if (isParentFolder)
+        {
+            // 上位フォルダアイコン（↑）の場合は大きめフォントで中央配置
+            text.fontSize = iconSize * 0.35f;  // 通常より大きく（35%）
+            text.alignment = TextAlignmentOptions.Center;  // 中央揃え
+            text.fontStyle = FontStyles.Bold;
+        }
+        else
+        {
+            // 通常のファイル・フォルダの場合
+            text.fontSize = iconSize * 0.15f;  // アイコンサイズの15%でフォントサイズを動的に調整
+            text.alignment = TextAlignmentOptions.Left;  // 左揃え
+            text.fontStyle = FontStyles.Bold;
+            text.enableWordWrapping = true;
+            text.overflowMode = TextOverflowModes.Truncate;
+        }
+        
+        text.color = Color.black;
+        text.verticalAlignment = VerticalAlignmentOptions.Middle;
+        
+        // クリックイベント
+        buttonComponent.onClick.AddListener(() => {
+            if (isParentFolder)
+            {
+                // 上位フォルダアイコンの場合は親フォルダに移動
+                NavigateToParentFolder();
+            }
+            else if (isDirectory)
+            {
+                // 通常のフォルダの場合はそのフォルダに移動
+                NavigateToFolder(itemName);
+            }
+            else
+            {
+                // ファイルの場合はログ出力（将来的には開く処理を実装）
+                Debug.Log($"[UISetup] ファイルクリック: {itemName}");
+            }
+        });
+        
+        Debug.Log($"[UISetup] テストボタン作成: {itemName}");
+    }
+    
+    /// <summary>
+    /// 指定されたフォルダに移動
+    /// </summary>
+    void NavigateToFolder(string folderName)
+    {
+        // 新しいパスを構築（相対パス）
+        currentFolderPath = string.IsNullOrEmpty(currentFolderPath) 
+            ? folderName 
+            : Path.Combine(currentFolderPath, folderName);
+        
+        Debug.Log($"[UISetup] フォルダ移動: {currentFolderPath}");
+        
+        // パスバーを更新
+        if (pathBarText != null)
+        {
+            #if UNITY_EDITOR
+                pathBarText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+            #else
+                pathBarText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+            #endif
+        }
+        
+        // ファイルリストを更新
+        RefreshFileList();
+    }
+    
+    /// <summary>
+    /// ファイルリストを再読み込み
+    /// </summary>
+    void RefreshFileList()
+    {
+        if (fileButtonsContainer == null) return;
+        
+        // 既存のボタンをすべて削除
+        foreach (Transform child in fileButtonsContainer)
+        {
+            Destroy(child.gameObject);
+        }
+        
+        // GridLayoutGroupから必要な情報を取得
+        GridLayoutGroup gridLayout = fileButtonsContainer.GetComponent<GridLayoutGroup>();
+        float iconSize = gridLayout.cellSize.x;
+        
+        // 新しいファイルリストを作成
+        CreateTestFileButtons(fileButtonsContainer, iconSize);
+        
+        Debug.Log($"[UISetup] ファイルリスト更新完了: {currentFolderPath}");
+    }
+    
+    /// <summary>
+    /// VRコントローラーのナビゲーション入力をチェック
+    /// </summary>
+    void CheckNavigationInput()
+    {
+        // 右コントローラーのBボタンをチェック
+        InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        if (rightController.isValid)
+        {
+            bool bButtonPressed;
+            if (rightController.TryGetFeatureValue(CommonUsages.secondaryButton, out bButtonPressed))
+            {
+                if (bButtonPressed && !previousBButtonPressed)  // ボタンが押された瞬間のみ
+                {
+                    NavigateToParentFolder();
+                }
+            }
+            previousBButtonPressed = bButtonPressed;
+        }
+        
+        // 左コントローラーのBボタンもチェック（予備）
+        InputDevice leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        if (leftController.isValid)
+        {
+            bool bButtonPressed;
+            if (leftController.TryGetFeatureValue(CommonUsages.secondaryButton, out bButtonPressed))
+            {
+                if (bButtonPressed && !previousLeftBButtonPressed)  // ボタンが押された瞬間のみ
+                {
+                    NavigateToParentFolder();
+                }
+            }
+            previousLeftBButtonPressed = bButtonPressed;
+        }
+    }
+    
+    /// <summary>
+    /// 上位フォルダ（親フォルダ）へ遷移
+    /// </summary>
+    void NavigateToParentFolder()
+    {
+        // ルートフォルダ（空の場合）なら何もしない
+        if (string.IsNullOrEmpty(currentFolderPath))
+        {
+            Debug.Log("[UISetup] 既にルートフォルダにいます");
+            return;
+        }
+        
+        // パスを分解して親フォルダのパスを取得
+        string parentPath = Path.GetDirectoryName(currentFolderPath);
+        
+        // パスの区切り文字を統一（Windowsの\をLinux/Unityの/に変換）
+        if (!string.IsNullOrEmpty(parentPath))
+        {
+            parentPath = parentPath.Replace('\\', '/');
+        }
+        
+        currentFolderPath = parentPath ?? "";  // nullの場合は空文字列
+        
+        Debug.Log($"[UISetup] 上位フォルダへ移動: '{currentFolderPath}' (元: '{parentPath}')");
+        
+        // パスバーを更新
+        if (pathBarText != null)
+        {
+            #if UNITY_EDITOR
+                pathBarText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+            #else
+                pathBarText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+            #endif
+        }
+        
+        // ファイルリストを更新
+        RefreshFileList();
+    }
+    
+    /// <summary>
+    /// 実機用のサンプルフォルダ構造を作成
+    /// </summary>
+    void CreateSampleFolderStructure(string basePath)
+    {
+        Debug.Log($"[UISetup] サンプルフォルダ構造を作成: {basePath}");
+        
+        // サンプルフォルダを作成
+        string[] sampleFolders = {
+            "Images",
+            "Videos",
+            "Documents",
+            "Downloads",
+            "Music"
+        };
+        
+        foreach (string folder in sampleFolders)
+        {
+            string folderPath = Path.Combine(basePath, folder);
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+                Debug.Log($"[UISetup] フォルダ作成: {folder}");
+            }
+        }
+        
+        // サンプルファイルを作成（テキストファイル）
+        string[] sampleFiles = {
+            "readme.txt",
+            "sample.txt",
+            "test_document.txt"
+        };
+        
+        foreach (string fileName in sampleFiles)
+        {
+            string filePath = Path.Combine(basePath, fileName);
+            if (!File.Exists(filePath))
+            {
+                File.WriteAllText(filePath, $"This is a sample file: {fileName}\nCreated for VR File Explorer");
+                Debug.Log($"[UISetup] ファイル作成: {fileName}");
+            }
+        }
+        
+        // Documentsフォルダにもサンプルファイルを作成
+        string docsPath = Path.Combine(basePath, "Documents");
+        string docFile = Path.Combine(docsPath, "document1.txt");
+        if (!File.Exists(docFile))
+        {
+            File.WriteAllText(docFile, "Sample document in Documents folder");
+        }
+        
+        Debug.Log($"[UISetup] サンプルフォルダ構造の作成完了");
     }
     
 }
