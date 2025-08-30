@@ -250,6 +250,10 @@ public static class AndroidFileAccess
         }
         
         Debug.Log($"[AndroidFileAccess] 合計発見ファイル数: {allFiles.Count}個");
-        return new List<string>(allFiles).ToArray();
+        
+        // HashSetを配列に変換
+        string[] result = new string[allFiles.Count];
+        allFiles.CopyTo(result);
+        return result;
     }
 }
