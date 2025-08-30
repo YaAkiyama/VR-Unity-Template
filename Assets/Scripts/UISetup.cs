@@ -58,6 +58,13 @@ public class UISetup : MonoBehaviour
     
     void Start()
     {
+        // パーミッション要求コンポーネントを追加（Android実機用）
+        if (!gameObject.GetComponent<PermissionRequester>())
+        {
+            gameObject.AddComponent<PermissionRequester>();
+            Debug.Log("[UISetup] PermissionRequesterコンポーネントを追加");
+        }
+        
         // カメラ参照を確実に取得
         StartCoroutine(InitializeAfterFrame());
     }

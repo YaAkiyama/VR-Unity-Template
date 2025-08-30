@@ -166,20 +166,20 @@ public static class AndroidFileAccess
                     
                     // クエリ用のプロジェクション（取得する列）
                     string[] projection = {
-                        "data",           // ファイルパス
-                        "display_name"    // ファイル名
+                        "_data",           // ファイルパス（MediaStoreの正しいカラム名）
+                        "_display_name"    // ファイル名（MediaStoreの正しいカラム名）
                     };
                     
                     // WHERE句でフォルダパスをフィルタ
-                    string selection = "data LIKE ?";
+                    string selection = "_data LIKE ?";
                     string[] selectionArgs = { folderPath + "/%" };
                     
                     using (var cursor = contentResolver.Call<AndroidJavaObject>("query", uri, projection, selection, selectionArgs, null))
                     {
                         if (cursor != null && cursor.Call<bool>("moveToFirst"))
                         {
-                            int dataColumnIndex = cursor.Call<int>("getColumnIndex", "data");
-                            int displayNameIndex = cursor.Call<int>("getColumnIndex", "display_name");
+                            int dataColumnIndex = cursor.Call<int>("getColumnIndex", "_data");
+                            int displayNameIndex = cursor.Call<int>("getColumnIndex", "_display_name");
                             
                             do
                             {
