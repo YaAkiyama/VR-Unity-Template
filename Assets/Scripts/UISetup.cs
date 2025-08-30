@@ -65,6 +65,15 @@ public class UISetup : MonoBehaviour
             Debug.Log("[UISetup] PermissionRequesterコンポーネントを追加");
         }
         
+        // テストファイル作成コンポーネントを追加（Android実機用）
+        #if UNITY_ANDROID && !UNITY_EDITOR
+        if (!gameObject.GetComponent<TestFileCreator>())
+        {
+            gameObject.AddComponent<TestFileCreator>();
+            Debug.Log("[UISetup] TestFileCreatorコンポーネントを追加");
+        }
+        #endif
+        
         // カメラ参照を確実に取得
         StartCoroutine(InitializeAfterFrame());
     }
