@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.yaakiyama.vrfileexplorer"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <!-- External storage access permissions for file explorer -->
+    <!-- Android 6.0+ (API 23+) requires runtime permission requests -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    
+    <!-- For Android 10+ (API 29+) if targeting files outside of scoped storage -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+                     android:maxSdkVersion="29" />
+    
+    <!-- For Android 11+ (API 30+) - All files access permission -->
+    <!-- This is a special permission that requires user approval from device settings -->
+    <!-- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" /> -->
+    
+    <!-- VR specific permissions for Meta Quest -->
+    <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <application android:label="@string/app_name" 
+                 android:icon="@mipmap/app_icon"
+                 android:allowBackup="false">
+        
+        <!-- Main Unity activity -->
+        <activity android:name="com.unity3d.player.UnityPlayerActivity"
+                  android:exported="true"
+                  android:label="@string/app_name"
+                  android:screenOrientation="landscape"
+                  android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize"
+                  android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

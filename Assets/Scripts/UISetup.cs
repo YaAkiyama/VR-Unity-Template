@@ -46,9 +46,15 @@ public class UISetup : MonoBehaviour
     private TextMeshProUGUI pathBarText;  // パスバーのテキスト参照
     private Transform fileButtonsContainer;  // ファイルボタンのコンテナ参照
     
+    // 外部ストレージアクセス用の状態管理
+    private string[] availablePaths;  // 利用可能なストレージパス一覧
+    private int currentPathIndex = 0;  // 現在選択中のパス
+    private bool showingRootSelection = false;  // ルート選択画面表示中
+    
     // VRコントローラー入力の状態管理
     private bool previousBButtonPressed = false;  // 右コントローラーBボタンの前回の状態
     private bool previousLeftBButtonPressed = false;  // 左コントローラーBボタンの前回の状態
+    private bool previousAButtonPressed = false;  // 右コントローラーAボタンの前回の状態（ストレージ切替用）
     
     void Start()
     {
@@ -788,7 +794,9 @@ public class UISetup : MonoBehaviour
         #if UNITY_EDITOR
             pathText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
         #else
-            pathText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+            // 実機では現在のストレージ名を表示
+            string displayName = string.IsNullOrEmpty(baseFolderPath) ? "Storage" : AndroidFileAccess.GetDisplayName(baseFolderPath);
+            pathText.text = displayName + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
         #endif
         pathText.fontSize = 10f;  // 視認性を考慮して大きくする
         pathText.color = Color.white;
@@ -991,18 +999,40 @@ public class UISetup : MonoBehaviour
         
         if (string.IsNullOrEmpty(baseFolderPath))
         {
-            // 初回実行時：ベースパスを設定
+            // 初回実行時：利用可能なパスを取得してベースパスを設定
             #if UNITY_EDITOR
                 // エディタではStreamingAssetsを使用
-                baseFolderPath = Path.Combine(Application.dataPath, "StreamingAssets");
+                availablePaths = new string[] { Path.Combine(Application.dataPath, "StreamingAssets") };
+                baseFolderPath = availablePaths[0];
                 targetPath = baseFolderPath;
             #else
-                // 実機ではPersistentDataPathを使用（読み書き可能）
-                baseFolderPath = Application.persistentDataPath;
-                targetPath = baseFolderPath;
+                // 実機では利用可能な外部ストレージパスを取得
+                availablePaths = AndroidFileAccess.GetAvailablePaths();
                 
-                // サンプルフォルダ構造を作成（初回のみ）
-                CreateSampleFolderStructure(baseFolderPath);
+                if (availablePaths.Length > 0)
+                {
+                    baseFolderPath = availablePaths[currentPathIndex];
+                    targetPath = baseFolderPath;
+                    
+                    // persistentDataPathの場合のみサンプルフォルダ構造を作成
+                    if (baseFolderPath == Application.persistentDataPath)
+                    {
+                        CreateSampleFolderStructure(baseFolderPath);
+                    }
+                }
+                else
+                {
+                    // フォールバック
+                    baseFolderPath = Application.persistentDataPath;
+                    targetPath = baseFolderPath;
+                    CreateSampleFolderStructure(baseFolderPath);
+                }
+                
+                Debug.Log($"[UISetup] 利用可能なストレージパス数: {availablePaths.Length}");
+                for (int i = 0; i < availablePaths.Length; i++)
+                {
+                    Debug.Log($"[UISetup] Path[{i}]: {AndroidFileAccess.GetDisplayName(availablePaths[i])} - {availablePaths[i]}");
+                }
             #endif
             
             Debug.Log($"[UISetup] ベースフォルダパス設定: {baseFolderPath}");
@@ -1038,34 +1068,77 @@ public class UISetup : MonoBehaviour
         }
         
         // フォルダを先に追加
-        string[] directories = Directory.GetDirectories(targetPath);
-        foreach (string dir in directories)
+        try
         {
-            string dirName = Path.GetFileName(dir);
-            // .metaファイルのフォルダは除外
-            if (!dirName.EndsWith(".meta"))
+            string[] directories = Directory.GetDirectories(targetPath);
+            Debug.Log($"[UISetup] フォルダ検索結果: {directories.Length}個のフォルダを発見");
+            
+            foreach (string dir in directories)
             {
-                items.Add(dirName);
-                isFolder.Add(true);
-                isParentFolder.Add(false);  // 通常のフォルダ
+                string dirName = Path.GetFileName(dir);
+                Debug.Log($"[UISetup] フォルダ発見: {dirName}");
+                
+                // .metaファイルのフォルダは除外
+                if (!dirName.EndsWith(".meta"))
+                {
+                    items.Add(dirName);
+                    isFolder.Add(true);
+                    isParentFolder.Add(false);  // 通常のフォルダ
+                }
             }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[UISetup] フォルダ取得エラー: {e.Message}");
         }
         
         // ファイルを追加
-        string[] files = Directory.GetFiles(targetPath);
-        foreach (string file in files)
+        try
         {
-            string fileName = Path.GetFileName(file);
-            // .metaファイルは除外
-            if (!fileName.EndsWith(".meta"))
-            {
-                items.Add(fileName);
-                isFolder.Add(false);
-                isParentFolder.Add(false);  // 通常のファイル
-            }
+            #if UNITY_EDITOR
+                // エディタでは従来のDirectory.GetFiles使用
+                string[] files = Directory.GetFiles(targetPath);
+                Debug.Log($"[UISetup] ファイル検索結果: {files.Length}個のファイルを発見");
+                
+                foreach (string file in files)
+                {
+                    string fileName = Path.GetFileName(file);
+                    Debug.Log($"[UISetup] ファイル発見: {fileName}");
+                    
+                    // .metaファイルは除外
+                    if (!fileName.EndsWith(".meta"))
+                    {
+                        items.Add(fileName);
+            #else
+                // 実機ではMediaStore APIを組み合わせたファイル取得を使用
+                string[] fileNames = AndroidFileAccess.GetFilesWithMediaStore(targetPath);
+                Debug.Log($"[UISetup] MediaStore統合ファイル検索結果: {fileNames.Length}個のファイルを発見");
+                
+                foreach (string fileName in fileNames)
+                {
+                    Debug.Log($"[UISetup] ファイル発見: {fileName}");
+                    
+                    // .metaファイルは除外
+                    if (!fileName.EndsWith(".meta"))
+                    {
+                        items.Add(fileName);
+                        isFolder.Add(false);
+                        isParentFolder.Add(false);  // 通常のファイル
+                        Debug.Log($"[UISetup] ファイル追加: {fileName}");
+                    }
+                    else
+                    {
+                        Debug.Log($"[UISetup] .metaファイルをスキップ: {fileName}");
+                    }
+                }
+            #endif
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[UISetup] ファイル取得エラー: {e.Message}");
         }
         
-        Debug.Log($"[UISetup] 検出されたアイテム数: {items.Count} (フォルダ: {directories.Length}, ファイル: {files.Length})");
+        Debug.Log($"[UISetup] 最終的な検出アイテム数: {items.Count} (フォルダ含む)");
         
         // ボタンを作成
         for (int i = 0; i < items.Count; i++)
@@ -1187,7 +1260,8 @@ public class UISetup : MonoBehaviour
             #if UNITY_EDITOR
                 pathBarText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
             #else
-                pathBarText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+                string displayName = AndroidFileAccess.GetDisplayName(baseFolderPath);
+                pathBarText.text = displayName + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
             #endif
         }
         
@@ -1219,11 +1293,47 @@ public class UISetup : MonoBehaviour
     }
     
     /// <summary>
+    /// 利用可能なストレージパス間を切り替え
+    /// </summary>
+    void SwitchStoragePath()
+    {
+        #if !UNITY_EDITOR
+        if (availablePaths == null || availablePaths.Length <= 1)
+        {
+            Debug.Log("[UISetup] 切り替え可能なストレージパスがありません");
+            return;
+        }
+        
+        // 次のパスに切り替え
+        currentPathIndex = (currentPathIndex + 1) % availablePaths.Length;
+        string newBasePath = availablePaths[currentPathIndex];
+        
+        // パス変更
+        baseFolderPath = newBasePath;
+        currentFolderPath = "";  // ルートに戻る
+        
+        string displayName = AndroidFileAccess.GetDisplayName(baseFolderPath);
+        Debug.Log($"[UISetup] ストレージを切り替え: {displayName} ({baseFolderPath})");
+        
+        // パスバーを更新
+        if (pathBarText != null)
+        {
+            pathBarText.text = displayName;
+        }
+        
+        // ファイルリストを更新
+        RefreshFileList();
+        #else
+        Debug.Log("[UISetup] ストレージ切り替えはエディタでは無効です");
+        #endif
+    }
+    
+    /// <summary>
     /// VRコントローラーのナビゲーション入力をチェック
     /// </summary>
     void CheckNavigationInput()
     {
-        // 右コントローラーのBボタンをチェック
+        // 右コントローラーのBボタンをチェック（上位フォルダ）
         InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
         if (rightController.isValid)
         {
@@ -1236,6 +1346,17 @@ public class UISetup : MonoBehaviour
                 }
             }
             previousBButtonPressed = bButtonPressed;
+            
+            // 右コントローラーのAボタンをチェック（ストレージ切替）
+            bool aButtonPressed;
+            if (rightController.TryGetFeatureValue(CommonUsages.primaryButton, out aButtonPressed))
+            {
+                if (aButtonPressed && !previousAButtonPressed)  // ボタンが押された瞬間のみ
+                {
+                    SwitchStoragePath();
+                }
+            }
+            previousAButtonPressed = aButtonPressed;
         }
         
         // 左コントローラーのBボタンもチェック（予備）
@@ -1285,7 +1406,8 @@ public class UISetup : MonoBehaviour
             #if UNITY_EDITOR
                 pathBarText.text = "Assets/StreamingAssets" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
             #else
-                pathBarText.text = "Storage" + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
+                string displayName = AndroidFileAccess.GetDisplayName(baseFolderPath);
+                pathBarText.text = displayName + (string.IsNullOrEmpty(currentFolderPath) ? "" : "/" + currentFolderPath);
             #endif
         }
         
