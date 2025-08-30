@@ -65,6 +65,11 @@ public class UISetup : MonoBehaviour
             Debug.Log("[UISetup] PermissionRequesterコンポーネントを追加");
         }
         
+        // 実機でのパス探索（デバッグ用）
+        #if UNITY_ANDROID && !UNITY_EDITOR
+        SimpleFileAccess.DiscoverAvailablePaths();
+        #endif
+        
         // カメラ参照を確実に取得
         StartCoroutine(InitializeAfterFrame());
     }

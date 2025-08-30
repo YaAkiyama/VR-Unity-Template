@@ -10,12 +10,17 @@ public class PermissionRequester : MonoBehaviour
 {
     void Start()
     {
+        Debug.Log("[PermissionRequester] Start() 実行開始");
         StartCoroutine(RequestPermissions());
     }
     
     IEnumerator RequestPermissions()
     {
+        Debug.Log("[PermissionRequester] RequestPermissions() コルーチン開始");
+        
         #if UNITY_ANDROID && !UNITY_EDITOR
+        Debug.Log("[PermissionRequester] Android実機モードで実行中");
+        
         // Android 6.0以上で実行時パーミッションが必要
         if (!Permission.HasUserAuthorizedPermission(Permission.ExternalStorageRead))
         {
