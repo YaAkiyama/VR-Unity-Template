@@ -65,11 +65,6 @@ public class UISetup : MonoBehaviour
             Debug.Log("[UISetup] PermissionRequesterコンポーネントを追加");
         }
         
-        // 実機でのパス探索（デバッグ用）
-        #if UNITY_ANDROID && !UNITY_EDITOR
-        SimpleFileAccess.DiscoverAvailablePaths();
-        #endif
-        
         // カメラ参照を確実に取得
         StartCoroutine(InitializeAfterFrame());
     }
@@ -78,6 +73,14 @@ public class UISetup : MonoBehaviour
     {
         // 1フレーム待ってからカメラを検索（他のオブジェクトが初期化される時間を確保）
         yield return null;
+        
+        // 権限取得後にパス探索を実行（Android実機のみ）
+        #if UNITY_ANDROID && !UNITY_EDITOR
+        yield return new WaitForSeconds(2f);  // 権限処理を待つ
+        Debug.Log("[UISetup] === パス探索開始 ===");
+        SimpleFileAccess.DiscoverAvailablePaths();
+        Debug.Log("[UISetup] === パス探索完了 ===");
+        #endif
         
         // コンポーネント参照を取得
         mainCamera = Camera.main;

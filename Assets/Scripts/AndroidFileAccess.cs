@@ -96,7 +96,36 @@ public static class AndroidFileAccess
             Application.persistentDataPath  // アプリ専用領域（常に利用可能）
         };
         
-        // 各標準フォルダをチェック
+        // Meta Quest用の追加パス（直接指定）
+        string[] metaQuestPaths = new string[]
+        {
+            "/sdcard/Download",
+            "/sdcard/Pictures",
+            "/sdcard/Documents",
+            "/sdcard/Movies",
+            "/sdcard/Music",
+            "/sdcard/DCIM",
+            "/sdcard/Oculus",
+            "/storage/emulated/0/Download",
+            "/storage/emulated/0/Pictures",
+            "/storage/emulated/0/Documents",
+            "/storage/emulated/0/Movies",
+            "/storage/emulated/0/Music",
+            "/storage/emulated/0/DCIM",
+            "/storage/emulated/0/Oculus"
+        };
+        
+        // Meta Quest専用パスを試す
+        foreach (string path in metaQuestPaths)
+        {
+            if (IsPathAccessible(path) && !paths.Contains(path))
+            {
+                paths.Add(path);
+                Debug.Log($"[AndroidFileAccess] Meta Quest path added: {path}");
+            }
+        }
+        
+        // 各標準フォルダをチェック（従来の方法も維持）
         var externalPaths = new string[]
         {
             ExternalPaths.Downloads,
