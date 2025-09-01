@@ -164,6 +164,15 @@ public class MediaMetadataAnalyzer : MonoBehaviour
     /// </summary>
     private PanoramaCheckResult AnalyzeImageDimensions(PanoramaCheckResult result)
     {
+        // 最小解像度チェック - 小さすぎる画像はパノラマではない
+        if (result.Width < 2000 || result.Height < 1000)
+        {
+            result.IsPanorama = false;
+            result.Type = PanoramaType.None;
+            result.Reason = "解像度が低すぎる（パノラマではない）";
+            return result;
+        }
+        
         // 正距円筒図法（Equirectangular）の判定
         // 標準的な360度パノラマは2:1のアスペクト比
         if (Math.Abs(result.AspectRatio - 2.0f) < 0.1f)
@@ -174,7 +183,7 @@ public class MediaMetadataAnalyzer : MonoBehaviour
             return result;
         }
         
-        // キューブマップの判定（6:1または3:2）
+        // キューブマップの判定（6:1）
         if (Math.Abs(result.AspectRatio - 6.0f) < 0.1f)
         {
             result.IsPanorama = true;
@@ -183,21 +192,26 @@ public class MediaMetadataAnalyzer : MonoBehaviour
             return result;
         }
         
-        if (Math.Abs(result.AspectRatio - 1.5f) < 0.1f && result.Height % 2 == 0)
+        // 3:2アスペクト比のキューブマップ判定（より厳密な条件）
+        // キューブマップは通常高解像度で、幅が3の倍数、高さが2の倍数
+        if (Math.Abs(result.AspectRatio - 1.5f) < 0.05f && 
+            result.Width >= 3000 && // 最小幅3000px（キューブマップは高解像度）
+            result.Width % 3 == 0 && // 幅が3の倍数
+            result.Height % 2 == 0)   // 高さが2の倍数
         {
-            // 3:2でかつ高さが偶数の場合、キューブマップの可能性
             result.IsPanorama = true;
             result.Type = PanoramaType.Cubemap;
-            result.Reason = "3:2アスペクト比（キューブマップ3x2配置）";
+            result.Reason = "3:2アスペクト比（高解像度キューブマップ3x2配置）";
             return result;
         }
         
-        // 大きな横幅を持つ画像（パノラマ写真の可能性）
-        if (result.AspectRatio > 3.0f && result.Width > 4000)
+        // 大きな横幅を持つ画像（水平パノラマ写真の可能性）
+        // ただし、より厳密な条件で判定
+        if (result.AspectRatio > 4.0f && result.Width > 5000)
         {
             result.IsPanorama = true;
             result.Type = PanoramaType.Spherical;
-            result.Reason = "広いアスペクト比と高解像度";
+            result.Reason = "超広角アスペクト比（水平パノラマ）";
             return result;
         }
         
