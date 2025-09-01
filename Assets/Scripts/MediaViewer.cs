@@ -146,14 +146,14 @@ public class MediaViewer : MonoBehaviour
     }
     
     /// <summary>
-    /// パノラマ画像を表示（左パネルに球体として表示）
+    /// パノラマ画像をSkyboxとして表示
     /// </summary>
     private void DisplayPanoramaImage(string filePath, GameObject targetPanel)
     {
-        StartCoroutine(LoadPanoramaImageCoroutine(filePath, targetPanel));
+        StartCoroutine(LoadPanoramaImageForSkyboxCoroutine(filePath));
     }
     
-    private IEnumerator LoadPanoramaImageCoroutine(string filePath, GameObject targetPanel)
+    private IEnumerator LoadPanoramaImageForSkyboxCoroutine(string filePath)
     {
         UpdateStatus("パノラマ画像を読み込み中...");
         
@@ -171,63 +171,77 @@ public class MediaViewer : MonoBehaviour
                 yield break;
             }
             
-            // パノラマ球体を作成または取得
-            GameObject sphere = GetOrCreatePanoramaSphere(targetPanel);
+            // テクスチャを取得してSkyboxに設定
+            Texture2D texture = DownloadHandlerTexture.GetContent(www);
+            Debug.Log($"[MediaViewer] パノラマ画像をSkyboxに設定: {Path.GetFileName(filePath)}");
             
-            // テクスチャを適用
-            Renderer renderer = sphere.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Texture2D texture = DownloadHandlerTexture.GetContent(www);
-                Material mat = new Material(Shader.Find("Unlit/Texture"));
-                mat.mainTexture = texture;
-                // パノラマ画像は内側から見るので裏面を表示
-                mat.SetInt("_Cull", 1); // Front面をカリング
-                renderer.material = mat;
-            }
+            // Skybox用マテリアルを動的に作成してSkyboxに適用
+            SetPanoramaSkybox(texture);
             
-            UpdateStatus("パノラマ画像表示中");
-            Debug.Log($"[MediaViewer] パノラマ画像表示完了: {Path.GetFileName(filePath)}");
+            UpdateStatus("パノラマ画像をSkyboxに表示中");
+            Debug.Log($"[MediaViewer] パノラマ画像Skybox表示完了: {Path.GetFileName(filePath)}");
         }
     }
     
     /// <summary>
-    /// パノラマ動画を表示
+    /// パノラマ動画をSkyboxとして表示
     /// </summary>
     private void DisplayPanoramaVideo(string filePath, GameObject targetPanel)
     {
         UpdateStatus("パノラマ動画を準備中...");
         
-        // パノラマ球体を作成または取得
-        GameObject sphere = GetOrCreatePanoramaSphere(targetPanel);
+        // 既存のVideoPlayerを停止（あれば）
+        StopAllVideoPlayers();
         
-        // VideoPlayerコンポーネントを追加または取得
-        VideoPlayer vp = sphere.GetComponent<VideoPlayer>();
-        if (vp == null)
-        {
-            vp = sphere.AddComponent<VideoPlayer>();
-        }
+        // 新しいVideoPlayerオブジェクトを作成
+        GameObject videoPlayerObj = new GameObject("PanoramaVideoPlayer");
+        VideoPlayer vp = videoPlayerObj.AddComponent<VideoPlayer>();
         
-        // 動画設定
+        // RenderTextureを作成（動画用）
+        RenderTexture renderTexture = new RenderTexture(2048, 1024, 0, RenderTextureFormat.ARGB32);
+        renderTexture.Create();
+        
+        // VideoPlayer設定
         vp.source = VideoSource.Url;
         vp.url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
-        vp.renderMode = VideoRenderMode.MaterialOverride;
-        
-        Renderer renderer = sphere.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            vp.targetMaterialRenderer = renderer;
-            vp.targetMaterialProperty = "_MainTex";
-        }
-        
+        vp.renderMode = VideoRenderMode.RenderTexture;
+        vp.targetTexture = renderTexture;
         vp.isLooping = true;
         vp.playOnAwake = false;
         
-        // 再生開始
-        vp.Play();
+        // 動画準備完了時のコールバック
+        vp.prepareCompleted += (VideoPlayer source) =>
+        {
+            Debug.Log("[MediaViewer] パノラマ動画準備完了、Skyboxに設定");
+            SetPanoramaSkybox(renderTexture);
+            source.Play();
+            UpdateStatus("パノラマ動画をSkyboxで再生中");
+        };
         
-        UpdateStatus("パノラマ動画再生中");
-        Debug.Log($"[MediaViewer] パノラマ動画再生開始: {Path.GetFileName(filePath)}");
+        // 動画準備開始
+        vp.Prepare();
+        
+        Debug.Log($"[MediaViewer] パノラマ動画準備開始: {Path.GetFileName(filePath)}");
+    }
+    
+    /// <summary>
+    /// 全てのVideoPlayerを停止
+    /// </summary>
+    private void StopAllVideoPlayers()
+    {
+        VideoPlayer[] players = FindObjectsOfType<VideoPlayer>();
+        foreach (VideoPlayer player in players)
+        {
+            if (player != null && player.gameObject.name == "PanoramaVideoPlayer")
+            {
+                player.Stop();
+                if (player.targetTexture != null)
+                {
+                    player.targetTexture.Release();
+                }
+                Destroy(player.gameObject);
+            }
+        }
     }
     
     /// <summary>
@@ -368,59 +382,6 @@ public class MediaViewer : MonoBehaviour
         UpdateStatus("動画再生中");
         UpdateTitle(Path.GetFileName(filePath));
         Debug.Log($"[MediaViewer] 動画再生開始: {Path.GetFileName(filePath)}");
-    }
-    
-    /// <summary>
-    /// パノラマ球体を作成または取得
-    /// </summary>
-    private GameObject GetOrCreatePanoramaSphere(GameObject targetPanel)
-    {
-        // 既存の球体を探す
-        Transform existingSphere = targetPanel != null ? 
-            targetPanel.transform.Find("PanoramaSphere") : 
-            GameObject.Find("PanoramaSphere")?.transform;
-        
-        if (existingSphere != null)
-        {
-            return existingSphere.gameObject;
-        }
-        
-        // 新規作成
-        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        sphere.name = "PanoramaSphere";
-        
-        if (targetPanel != null)
-        {
-            sphere.transform.SetParent(targetPanel.transform);
-            sphere.transform.localPosition = Vector3.zero;
-            sphere.transform.localScale = Vector3.one * 0.8f; // パネルサイズに合わせて調整
-        }
-        else
-        {
-            // カメラの位置に配置
-            Camera mainCam = Camera.main;
-            if (mainCam != null)
-            {
-                sphere.transform.position = mainCam.transform.position;
-                sphere.transform.localScale = Vector3.one * 10f; // ユーザーを囲む大きさ
-            }
-        }
-        
-        // 球体を反転（内側から見るため）
-        sphere.transform.localScale = new Vector3(
-            -Mathf.Abs(sphere.transform.localScale.x),
-            sphere.transform.localScale.y,
-            sphere.transform.localScale.z
-        );
-        
-        // コライダーを無効化（視界を妨げないように）
-        Collider col = sphere.GetComponent<Collider>();
-        if (col != null)
-        {
-            col.enabled = false;
-        }
-        
-        return sphere;
     }
     
     /// <summary>
@@ -611,5 +572,55 @@ public class MediaViewer : MonoBehaviour
         {
             titleText.text = title;
         }
+    }
+    
+    /// <summary>
+    /// パノラマテクスチャをSkyboxとして設定（画像用）
+    /// </summary>
+    private void SetPanoramaSkybox(Texture2D texture)
+    {
+        // Skybox/Panoramicシェーダーを使用してマテリアルを作成
+        Shader panoramicShader = Shader.Find("Skybox/Panoramic");
+        if (panoramicShader == null)
+        {
+            Debug.LogError("[MediaViewer] Skybox/Panoramicシェーダーが見つかりません");
+            return;
+        }
+        
+        Material skyboxMaterial = new Material(panoramicShader);
+        skyboxMaterial.SetTexture("_MainTex", texture);
+        skyboxMaterial.SetFloat("_Mapping", 6f); // Latitude Longitude Layout
+        skyboxMaterial.SetFloat("_ImageType", 0f); // 360 Degrees
+        skyboxMaterial.SetFloat("_Exposure", 1.3f);
+        
+        // RenderSettingsのSkyboxを更新
+        RenderSettings.skybox = skyboxMaterial;
+        
+        Debug.Log("[MediaViewer] パノラマ画像をSkyboxとして設定完了");
+    }
+    
+    /// <summary>
+    /// パノラマテクスチャをSkyboxとして設定（RenderTexture用）
+    /// </summary>
+    private void SetPanoramaSkybox(RenderTexture renderTexture)
+    {
+        // Skybox/Panoramicシェーダーを使用してマテリアルを作成
+        Shader panoramicShader = Shader.Find("Skybox/Panoramic");
+        if (panoramicShader == null)
+        {
+            Debug.LogError("[MediaViewer] Skybox/Panoramicシェーダーが見つかりません");
+            return;
+        }
+        
+        Material skyboxMaterial = new Material(panoramicShader);
+        skyboxMaterial.SetTexture("_MainTex", renderTexture);
+        skyboxMaterial.SetFloat("_Mapping", 6f); // Latitude Longitude Layout
+        skyboxMaterial.SetFloat("_ImageType", 0f); // 360 Degrees
+        skyboxMaterial.SetFloat("_Exposure", 1.3f);
+        
+        // RenderSettingsのSkyboxを更新
+        RenderSettings.skybox = skyboxMaterial;
+        
+        Debug.Log("[MediaViewer] パノラマ動画をSkyboxとして設定完了");
     }
 }
