@@ -1261,8 +1261,9 @@ public class UISetup : MonoBehaviour
             }
             else
             {
-                // ファイルの場合はログ出力（将来的には開く処理を実装）
+                // ファイルの場合はメディアビューアで開く
                 Debug.Log($"[UISetup] ファイルクリック: {itemName}");
+                OpenMediaFile(itemName);
             }
         });
         
@@ -1484,6 +1485,52 @@ public class UISetup : MonoBehaviour
     
     private bool previousGripPressed = false; // 右グリップボタンの前回の状態
     private bool previousLeftGripPressed = false; // 左グリップボタンの前回の状態
+    
+    /// <summary>
+    /// メディアファイルを開く
+    /// </summary>
+    void OpenMediaFile(string fileName)
+    {
+        // フルパスを構築
+        string fullPath = string.IsNullOrEmpty(currentFolderPath) 
+            ? Path.Combine(baseFolderPath, fileName)
+            : Path.Combine(baseFolderPath, currentFolderPath, fileName);
+        
+        Debug.Log($"[UISetup] メディアファイルを開く: {fullPath}");
+        
+        // ファイルが存在するか確認
+        if (!File.Exists(fullPath))
+        {
+            Debug.LogError($"[UISetup] ファイルが見つかりません: {fullPath}");
+            return;
+        }
+        
+        // MediaViewerが存在しない場合は作成
+        MediaViewer viewer = MediaViewer.Instance;
+        if (viewer == null)
+        {
+            Debug.Log("[UISetup] MediaViewerを作成します");
+            GameObject viewerGO = new GameObject("MediaViewer");
+            viewer = viewerGO.AddComponent<MediaViewer>();
+        }
+        
+        // パノラマコンテンツの場合は左パネルを渡す
+        GameObject targetPanel = null;
+        string lowerName = fileName.ToLower();
+        if (lowerName.Contains("360") || lowerName.Contains("panorama") || lowerName.Contains("pano"))
+        {
+            // 左パネルを探す
+            Transform leftPanel = transform.Find("LeftPanel");
+            if (leftPanel != null)
+            {
+                targetPanel = leftPanel.gameObject;
+                Debug.Log("[UISetup] パノラマコンテンツを左パネルに表示します");
+            }
+        }
+        
+        // メディアファイルを開く
+        viewer.OpenMediaFile(fullPath, targetPanel);
+    }
     
     /// <summary>
     /// 上位フォルダ（親フォルダ）へ遷移
