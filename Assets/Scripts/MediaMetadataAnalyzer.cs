@@ -247,8 +247,75 @@ public class MediaMetadataAnalyzer : MonoBehaviour
     /// </summary>
     private PanoramaCheckResult AnalyzeVideoDimensions(PanoramaCheckResult result)
     {
-        // 動画も基本的に画像と同じ判定ロジックを使用
-        return AnalyzeImageDimensions(result);
+        // 動画は画像より低解像度でもパノラマの可能性がある
+        // （帯域幅とファイルサイズの制約のため）
+        
+        // 正距円筒図法（Equirectangular）の判定 - 2:1アスペクト比
+        if (Math.Abs(result.AspectRatio - 2.0f) < 0.1f)
+        {
+            // 動画の場合は最小解像度を緩和
+            if (result.Width >= 1920) // Full HD以上
+            {
+                result.IsPanorama = true;
+                result.Type = PanoramaType.Equirectangular;
+                result.Reason = "2:1アスペクト比の360度動画（正距円筒図法）";
+                return result;
+            }
+            else if (result.Width >= 1280) // HD以上
+            {
+                result.IsPanorama = true;
+                result.Type = PanoramaType.Equirectangular;
+                result.Reason = "2:1アスペクト比の360度動画（低解像度）";
+                return result;
+            }
+        }
+        
+        // 一般的な360度動画の解像度パターン
+        int[][] common360VideoResolutions = new int[][]
+        {
+            new int[] {1920, 960},   // Full HD 360
+            new int[] {2560, 1280},  // 2.5K 360
+            new int[] {3840, 1920},  // 4K 360
+            new int[] {4096, 2048},  // Cinema 4K 360
+            new int[] {5760, 2880},  // 5.7K 360
+            new int[] {7680, 3840},  // 8K 360
+            new int[] {1280, 640},   // HD 360
+            new int[] {2048, 1024},  // 2K 360
+        };
+        
+        foreach (var res in common360VideoResolutions)
+        {
+            if (result.Width == res[0] && result.Height == res[1])
+            {
+                result.IsPanorama = true;
+                result.Type = PanoramaType.Equirectangular;
+                result.Reason = $"一般的な360度動画解像度 ({res[0]}x{res[1]})";
+                return result;
+            }
+        }
+        
+        // キューブマップ動画の判定（稀だが存在する）
+        if (Math.Abs(result.AspectRatio - 6.0f) < 0.1f && result.Width >= 3840)
+        {
+            result.IsPanorama = true;
+            result.Type = PanoramaType.Cubemap;
+            result.Reason = "6:1アスペクト比の360度動画（キューブマップ）";
+            return result;
+        }
+        
+        // 180度VR動画の判定（1:1アスペクト比）
+        if (Math.Abs(result.AspectRatio - 1.0f) < 0.1f && result.Width >= 1920)
+        {
+            result.IsPanorama = true;
+            result.Type = PanoramaType.Spherical;
+            result.Reason = "1:1アスペクト比のVR180動画";
+            return result;
+        }
+        
+        result.IsPanorama = false;
+        result.Type = PanoramaType.None;
+        result.Reason = "通常の動画フォーマット";
+        return result;
     }
     
     /// <summary>
