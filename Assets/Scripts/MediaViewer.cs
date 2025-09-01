@@ -80,46 +80,60 @@ public class MediaViewer : MonoBehaviour
         string extension = Path.GetExtension(filePath).ToLower();
         
         // ファイルタイプを判定
-        bool isPanorama = IsPanoramaContent(fileName);
         bool isVideo = IsVideoFile(extension);
         bool isImage = IsImageFile(extension);
         
-        if (isPanorama)
-        {
-            Debug.Log($"[MediaViewer] パノラマコンテンツとして表示: {fileName}");
-            if (isVideo)
-            {
-                DisplayPanoramaVideo(filePath, targetPanel);
-            }
-            else if (isImage)
-            {
-                DisplayPanoramaImage(filePath, targetPanel);
-            }
-        }
-        else if (isVideo)
-        {
-            Debug.Log($"[MediaViewer] 通常動画として表示: {fileName}");
-            DisplayRegularVideo(filePath);
-        }
-        else if (isImage)
-        {
-            Debug.Log($"[MediaViewer] 通常画像として表示: {fileName}");
-            DisplayRegularImage(filePath);
-        }
-        else
+        if (!isVideo && !isImage)
         {
             Debug.LogWarning($"[MediaViewer] サポートされていないファイル形式: {extension}");
+            return;
         }
+        
+        // メタデータ解析でパノラマ判定
+        UpdateStatus("メタデータを解析中...");
+        MediaMetadataAnalyzer.Instance.CheckIfPanorama(filePath, (result) =>
+        {
+            Debug.Log($"[MediaViewer] メタデータ解析結果 - パノラマ: {result.IsPanorama}");
+            Debug.Log($"[MediaViewer] 判定理由: {result.Reason}");
+            Debug.Log($"[MediaViewer] 解像度: {result.Width}x{result.Height}, アスペクト比: {result.AspectRatio:F2}");
+            
+            // 解析結果に基づいて適切な表示方法を選択
+            if (result.IsPanorama)
+            {
+                Debug.Log($"[MediaViewer] パノラマコンテンツとして表示: {fileName} (タイプ: {result.Type})");
+                if (isVideo)
+                {
+                    DisplayPanoramaVideo(filePath, targetPanel);
+                }
+                else if (isImage)
+                {
+                    DisplayPanoramaImage(filePath, targetPanel);
+                }
+            }
+            else
+            {
+                Debug.Log($"[MediaViewer] 通常メディアとして表示: {fileName}");
+                if (isVideo)
+                {
+                    DisplayRegularVideo(filePath);
+                }
+                else if (isImage)
+                {
+                    DisplayRegularImage(filePath);
+                }
+            }
+        });
     }
     
     /// <summary>
-    /// パノラマコンテンツかどうかを判定
+    /// パノラマコンテンツかどうかを判定（廃止予定 - メタデータ判定を使用）
     /// </summary>
+    [System.Obsolete("メタデータベースの判定（MediaMetadataAnalyzer）を使用してください")]
     private bool IsPanoramaContent(string fileName)
     {
         string lowerName = fileName.ToLower();
         
-        // パノラマを示すキーワードをチェック
+        // パノラマを示すキーワードをチェック（後方互換性のため残す）
         return lowerName.Contains("360") || 
                lowerName.Contains("panorama") || 
                lowerName.Contains("pano") ||
