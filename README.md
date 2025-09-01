@@ -43,11 +43,18 @@ Meta Quest 3向けVRファイルエクスプローラー
 - **スクロールバー**: 右側配置、細めのハンドル
 - **VR最適化**: 適切なフォントサイズと配色
 
+### 5. Android 14ファイルアクセス対応
+- **ContentProvider API**: MediaStore経由でメディアファイル検出
+- **MediaScanner統合**: ファイル強制スキャン機能
+- **MANAGE_EXTERNAL_STORAGE権限**: 全ファイルアクセス対応
+- **拡張子判定**: JPG、MP4、PNG等のメディアファイル自動検出
+
 ## 🎮 操作方法
 
 ### VRコントローラー
 - **右スティック上下**: ファイルリストのスクロール
 - **Bボタン（右/左）**: 上位フォルダへ移動（`cd ..`）
+- **グリップボタン（右/左）**: ファイルリスト強制更新（MediaScanner実行）
 - **トリガー**: ファイル・フォルダのクリック
 
 ### UI操作
@@ -128,7 +135,7 @@ VR-Unity-Template/
 ## 💻 重要なクラス
 
 ### UISetup.cs
-メインのUI制御クラス（1200+行）。以下の機能を提供：
+メインのUI制御クラス（1400+行）。以下の機能を提供：
 
 ```csharp
 // ファイルエクスプローラー用の状態管理
@@ -140,6 +147,8 @@ private Transform fileButtonsContainer;     // ファイルボタンコンテナ
 // VRコントローラー入力の状態管理
 private bool previousBButtonPressed = false;
 private bool previousLeftBButtonPressed = false;
+private bool previousGripPressed = false;
+private bool previousLeftGripPressed = false;
 ```
 
 **主要メソッド:**
@@ -147,7 +156,41 @@ private bool previousLeftBButtonPressed = false;
 - `NavigateToFolder(string folderName)`: フォルダ遷移処理
 - `NavigateToParentFolder()`: 上位フォルダ遷移（`cd ..`相当）
 - `CheckNavigationInput()`: VRコントローラーのBボタン監視
+- `CheckRefreshInput()`: グリップボタンでファイルリスト更新
 - `RefreshFileList()`: ファイルリストの動的更新
+
+### AndroidFileAccess.cs
+Android/Meta Quest向けファイルアクセス機能：
+
+```csharp
+// MediaStore API経由でファイル取得
+public static List<string> GetMediaStoreFiles(string folderPath)
+
+// MediaScannerでファイル登録
+public static void ScanFile(string filePath)
+public static void ScanFolder(string folderPath)
+
+// ContentProvider経由でファイル一覧取得
+static List<string> GetFilesViaContentProvider(string folderPath)
+
+// サポート拡張子の定義
+public static class SupportedExtensions
+{
+    public static readonly string[] Images = { ".jpg", ".jpeg", ".png", ... };
+    public static readonly string[] Videos = { ".mp4", ".mov", ".avi", ... };
+}
+```
+
+### PermissionRequester.cs
+Android実行時パーミッション要求：
+
+```csharp
+// MANAGE_EXTERNAL_STORAGE権限チェック
+static bool CheckAllFilesAccess()
+
+// ストレージ権限の状態確認
+public static bool HasStoragePermission()
+```
 
 ### VRScrollController.cs
 VRコントローラーによるスクロール制御：
@@ -230,6 +273,21 @@ Oculus Settings:
 
 ## 🐛 トラブルシューティング
 
+### Android 14でファイルが表示されない問題（解決済み）
+Meta Quest 3でJPG/MP4ファイルが表示されない場合の解決方法：
+
+1. **MANAGE_EXTERNAL_STORAGE権限の手動付与が必要**
+   - Meta Questのホーム画面で「設定」を開く
+   - 「アプリ」→「アプリ管理」を選択
+   - 「My Application」（VRアプリ）を選択
+   - 「権限」→「ファイルとメディア」を「許可」に変更
+   - 「すべてのファイルへのアクセス」も許可する
+
+2. **グリップボタンでファイルリスト強制更新**
+   - 右または左コントローラーのグリップボタンを押す
+   - MediaScannerでフォルダを再スキャン
+   - ファイルリストが更新される
+
 ### Unity MCPエラー
 ```bash
 # Unity Editorを再起動
@@ -290,6 +348,13 @@ Oculus Settings:
 
 ## 📝 開発ログ
 
+### 2025-09-01
+- **Android 14ファイルアクセス問題を解決**
+- ContentProvider/MediaStore APIでメディアファイル検出を実装
+- MANAGE_EXTERNAL_STORAGE権限の手動付与でJPG/MP4ファイル表示成功
+- MediaScannerによるファイル強制スキャン機能追加
+- VRコントローラーのグリップボタンでファイルリスト更新機能実装
+
 ### 2025-08-30
 - **VRファイルエクスプローラー基本機能完成**
 - UIパネルシステム実装（3パネル構成、カメラ追従）
@@ -330,9 +395,17 @@ GitHub MCPでREADME.mdを取得し、VRファイルエクスプローラーの�
 - 4列グリッドレイアウト + 垂直スクロール
 - VRコントローラー操作（スクロール・ナビゲーション）
 - 上位フォルダ遷移（Bボタン + 「↑」アイコン）
+- Android 14ファイルアクセス対応（MediaStore/ContentProvider）
+- グリップボタンでファイルリスト強制更新
+
+重要な権限設定：
+⚠️ Meta Quest 3でメディアファイル表示にはMANAGE_EXTERNAL_STORAGE権限の手動付与が必要
+詳細は「トラブルシューティング」セクション参照
 
 主要ファイル：
-- Assets/Scripts/UISetup.cs (1200+行)
+- Assets/Scripts/UISetup.cs (1400+行)
+- Assets/Scripts/AndroidFileAccess.cs（ファイルアクセス処理）
+- Assets/Scripts/PermissionRequester.cs（権限管理）
 - Assets/Scripts/VRScrollController.cs
 
 Unity MCPとGitHub MCPを使用して、拡張機能の開発や改善を継続してください。
@@ -348,4 +421,4 @@ YaAkiyama
 
 ---
 
-**最終更新**: 2025-08-21
+**最終更新**: 2025-09-01
