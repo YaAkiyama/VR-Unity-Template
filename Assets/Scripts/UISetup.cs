@@ -503,6 +503,14 @@ public class UISetup : MonoBehaviour
             return;
         }
         
+        // 右パネル（インデックス2）の場合はメディアビューアを作成
+        if (panelIndex == 2)
+        {
+            Debug.Log("[UISetup] 右パネルにメディアビューアを作成");
+            CreateMediaViewerPanel(parent);
+            return;
+        }
+        
         // 他のパネル（左・右）は従来のボタンを作成
         GameObject buttonContainer = new GameObject("ButtonContainer");
         buttonContainer.transform.SetParent(parent);
@@ -834,6 +842,124 @@ public class UISetup : MonoBehaviour
         pathText.margin = new Vector4(8f, 0f, 8f, 0f);  // 左右マージンのみ、上下は0
         pathText.enableWordWrapping = false;
         pathText.overflowMode = TextOverflowModes.Ellipsis;
+    }
+    
+    void CreateMediaViewerPanel(Transform parent)
+    {
+        Debug.Log("[UISetup] メディアビューアパネルを作成");
+        
+        // メディアビューアコンテナ作成
+        GameObject mediaContainer = new GameObject("MediaViewerContainer");
+        mediaContainer.transform.SetParent(parent);
+        
+        RectTransform containerRect = mediaContainer.AddComponent<RectTransform>();
+        containerRect.anchorMin = Vector2.zero;
+        containerRect.anchorMax = Vector2.one;
+        containerRect.sizeDelta = Vector2.zero;
+        containerRect.anchoredPosition = Vector2.zero;
+        containerRect.anchoredPosition3D = Vector3.zero;
+        containerRect.localPosition = Vector3.zero;
+        containerRect.localRotation = Quaternion.identity;
+        containerRect.localScale = Vector3.one;
+        
+        // タイトルバー作成
+        CreateMediaTitleBar(mediaContainer.transform);
+        
+        // メディア表示エリア作成
+        CreateMediaDisplayArea(mediaContainer.transform);
+        
+        // MediaViewerに参照を保存
+        MediaViewer viewer = MediaViewer.Instance;
+        if (viewer != null)
+        {
+            // MediaViewerにパネル参照を渡す
+            viewer.SetMediaPanel(mediaContainer);
+        }
+    }
+    
+    void CreateMediaTitleBar(Transform parent)
+    {
+        GameObject titleBar = new GameObject("MediaTitleBar");
+        titleBar.transform.SetParent(parent);
+        
+        RectTransform titleRect = titleBar.AddComponent<RectTransform>();
+        // 上端に固定、高さ20ピクセル
+        titleRect.anchorMin = new Vector2(0f, 1f);
+        titleRect.anchorMax = new Vector2(1f, 1f);
+        titleRect.pivot = new Vector2(0.5f, 1f);
+        titleRect.sizeDelta = new Vector2(0f, 20f);
+        titleRect.anchoredPosition = new Vector2(0f, 0f);
+        titleRect.localPosition = new Vector3(titleRect.localPosition.x, titleRect.localPosition.y, 0f);
+        titleRect.localRotation = Quaternion.identity;
+        titleRect.localScale = Vector3.one;
+        
+        // 背景
+        Image titleBg = titleBar.AddComponent<Image>();
+        titleBg.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+        
+        // タイトルテキスト
+        GameObject titleTextGO = new GameObject("TitleText");
+        titleTextGO.transform.SetParent(titleBar.transform);
+        
+        RectTransform titleTextRect = titleTextGO.AddComponent<RectTransform>();
+        titleTextRect.anchorMin = new Vector2(0.05f, 0f);
+        titleTextRect.anchorMax = new Vector2(0.95f, 1f);
+        titleTextRect.sizeDelta = Vector2.zero;
+        titleTextRect.anchoredPosition = Vector2.zero;
+        titleTextRect.localPosition = Vector3.zero;
+        titleTextRect.localRotation = Quaternion.identity;
+        titleTextRect.localScale = Vector3.one;
+        
+        TextMeshProUGUI titleText = titleTextGO.AddComponent<TextMeshProUGUI>();
+        titleText.text = "メディアビューア";
+        titleText.fontSize = 12f;
+        titleText.alignment = TextAlignmentOptions.Left;
+        titleText.verticalAlignment = VerticalAlignmentOptions.Middle;
+        titleText.color = Color.white;
+        titleText.margin = new Vector4(5f, 0f, 5f, 0f);
+    }
+    
+    void CreateMediaDisplayArea(Transform parent)
+    {
+        GameObject displayArea = new GameObject("MediaDisplayArea");
+        displayArea.transform.SetParent(parent);
+        
+        RectTransform displayRect = displayArea.AddComponent<RectTransform>();
+        // タイトルバーの下から下端まで
+        displayRect.anchorMin = new Vector2(0.05f, 0.05f);
+        displayRect.anchorMax = new Vector2(0.95f, 0.9f);  // タイトルバーの分だけ上を空ける
+        displayRect.sizeDelta = Vector2.zero;
+        displayRect.anchoredPosition = Vector2.zero;
+        displayRect.localPosition = Vector3.zero;
+        displayRect.localRotation = Quaternion.identity;
+        displayRect.localScale = Vector3.one;
+        
+        // 背景（少し暗めの色）
+        Image displayBg = displayArea.AddComponent<Image>();
+        displayBg.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+        
+        // プレースホルダーテキスト
+        GameObject placeholderGO = new GameObject("PlaceholderText");
+        placeholderGO.transform.SetParent(displayArea.transform);
+        
+        RectTransform placeholderRect = placeholderGO.AddComponent<RectTransform>();
+        placeholderRect.anchorMin = Vector2.zero;
+        placeholderRect.anchorMax = Vector2.one;
+        placeholderRect.sizeDelta = Vector2.zero;
+        placeholderRect.anchoredPosition = Vector2.zero;
+        placeholderRect.localPosition = Vector3.zero;
+        placeholderRect.localRotation = Quaternion.identity;
+        placeholderRect.localScale = Vector3.one;
+        
+        TextMeshProUGUI placeholderText = placeholderGO.AddComponent<TextMeshProUGUI>();
+        placeholderText.text = "ファイルを選択してください\n\n対応形式:\n- 画像: JPG, PNG, GIF等\n- 動画: MP4, MOV, AVI等\n\nパノラマコンテンツ(360度)\nは左パネルに表示されます";
+        placeholderText.fontSize = 10f;
+        placeholderText.alignment = TextAlignmentOptions.Center;
+        placeholderText.verticalAlignment = VerticalAlignmentOptions.Middle;
+        placeholderText.color = new Color(0.6f, 0.6f, 0.6f, 1f);
+        placeholderText.enableWordWrapping = true;
+        
+        Debug.Log("[UISetup] メディア表示エリア作成完了");
     }
     
     void CreateTestScrollView(Transform parent)
@@ -1512,6 +1638,17 @@ public class UISetup : MonoBehaviour
             Debug.Log("[UISetup] MediaViewerを作成します");
             GameObject viewerGO = new GameObject("MediaViewer");
             viewer = viewerGO.AddComponent<MediaViewer>();
+        }
+        
+        // 常時表示メディアパネルが設定されていない場合は設定する
+        Transform rightPanel = transform.Find("RightPanel");
+        if (rightPanel != null)
+        {
+            Transform mediaContainer = rightPanel.Find("MediaViewerContainer");
+            if (mediaContainer != null && viewer.permanentMediaPanel == null)
+            {
+                viewer.SetMediaPanel(mediaContainer.gameObject);
+            }
         }
         
         // パノラマコンテンツの場合は左パネルを渡す

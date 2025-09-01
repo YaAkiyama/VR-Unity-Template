@@ -21,6 +21,9 @@ public class MediaViewer : MonoBehaviour
     [SerializeField] private RawImage mediaImage;
     [SerializeField] private VideoPlayer videoPlayer;
     
+    // 常時表示メディアパネルの参照
+    public GameObject permanentMediaPanel;
+    
     [Header("UI要素")]
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private TextMeshProUGUI statusText;
@@ -55,6 +58,15 @@ public class MediaViewer : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+    
+    /// <summary>
+    /// 常時表示メディアパネルの設定
+    /// </summary>
+    public void SetMediaPanel(GameObject panel)
+    {
+        permanentMediaPanel = panel;
+        Debug.Log("[MediaViewer] 常時表示メディアパネルが設定されました");
     }
     
     /// <summary>
@@ -219,7 +231,7 @@ public class MediaViewer : MonoBehaviour
     }
     
     /// <summary>
-    /// 通常の画像を表示（新規パネルに表示）
+    /// 通常の画像を表示（常時表示パネルに表示）
     /// </summary>
     private void DisplayRegularImage(string filePath)
     {
@@ -230,8 +242,8 @@ public class MediaViewer : MonoBehaviour
     {
         UpdateStatus("画像を読み込み中...");
         
-        // メディアパネルを作成または取得
-        GameObject panel = GetOrCreateMediaPanel();
+        // 常時表示パネルを使用、なければ新規作成
+        GameObject panel = permanentMediaPanel != null ? permanentMediaPanel : GetOrCreateMediaPanel();
         
         string url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
         
@@ -246,19 +258,37 @@ public class MediaViewer : MonoBehaviour
                 yield break;
             }
             
+            // 表示エリアを探す
+            Transform displayArea = panel.transform.Find("MediaDisplayArea");
+            if (displayArea == null)
+            {
+                Debug.LogWarning("[MediaViewer] MediaDisplayAreaが見つかりません");
+                yield break;
+            }
+            
+            // 既存のプレースホルダーテキストを非表示
+            Transform placeholder = displayArea.Find("PlaceholderText");
+            if (placeholder != null)
+            {
+                placeholder.gameObject.SetActive(false);
+            }
+            
             // RawImageに画像を表示
-            RawImage image = panel.GetComponentInChildren<RawImage>();
+            RawImage image = displayArea.GetComponentInChildren<RawImage>();
             if (image == null)
             {
                 GameObject imageGO = new GameObject("MediaImage");
-                imageGO.transform.SetParent(panel.transform);
+                imageGO.transform.SetParent(displayArea);
                 image = imageGO.AddComponent<RawImage>();
                 
                 RectTransform rt = image.GetComponent<RectTransform>();
-                rt.anchorMin = new Vector2(0.1f, 0.1f);
-                rt.anchorMax = new Vector2(0.9f, 0.9f);
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
                 rt.sizeDelta = Vector2.zero;
                 rt.anchoredPosition = Vector2.zero;
+                rt.localPosition = Vector3.zero;
+                rt.localRotation = Quaternion.identity;
+                rt.localScale = Vector3.one;
             }
             
             Texture2D texture = DownloadHandlerTexture.GetContent(www);
@@ -277,14 +307,29 @@ public class MediaViewer : MonoBehaviour
     {
         UpdateStatus("動画を準備中...");
         
-        // メディアパネルを作成または取得
-        GameObject panel = GetOrCreateMediaPanel();
+        // 常時表示パネルを使用、なければ新規作成
+        GameObject panel = permanentMediaPanel != null ? permanentMediaPanel : GetOrCreateMediaPanel();
+        
+        // 表示エリアを探す
+        Transform displayArea = panel.transform.Find("MediaDisplayArea");
+        if (displayArea == null)
+        {
+            Debug.LogWarning("[MediaViewer] MediaDisplayAreaが見つかりません");
+            return;
+        }
+        
+        // 既存のプレースホルダーテキストを非表示
+        Transform placeholder = displayArea.Find("PlaceholderText");
+        if (placeholder != null)
+        {
+            placeholder.gameObject.SetActive(false);
+        }
         
         // VideoPlayerコンポーネントを追加
-        VideoPlayer vp = panel.GetComponent<VideoPlayer>();
+        VideoPlayer vp = displayArea.GetComponent<VideoPlayer>();
         if (vp == null)
         {
-            vp = panel.AddComponent<VideoPlayer>();
+            vp = displayArea.gameObject.AddComponent<VideoPlayer>();
         }
         
         // RenderTextureを作成
@@ -292,18 +337,21 @@ public class MediaViewer : MonoBehaviour
         vp.targetTexture = renderTexture;
         
         // RawImageに表示
-        RawImage image = panel.GetComponentInChildren<RawImage>();
+        RawImage image = displayArea.GetComponentInChildren<RawImage>();
         if (image == null)
         {
             GameObject imageGO = new GameObject("VideoDisplay");
-            imageGO.transform.SetParent(panel.transform);
+            imageGO.transform.SetParent(displayArea);
             image = imageGO.AddComponent<RawImage>();
             
             RectTransform rt = image.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.1f, 0.1f);
-            rt.anchorMax = new Vector2(0.9f, 0.9f);
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
             rt.sizeDelta = Vector2.zero;
             rt.anchoredPosition = Vector2.zero;
+            rt.localPosition = Vector3.zero;
+            rt.localRotation = Quaternion.identity;
+            rt.localScale = Vector3.one;
         }
         
         image.texture = renderTexture;
@@ -540,6 +588,25 @@ public class MediaViewer : MonoBehaviour
     /// </summary>
     private void UpdateTitle(string title)
     {
+        // 常時表示パネルのタイトルを更新
+        if (permanentMediaPanel != null)
+        {
+            Transform titleBar = permanentMediaPanel.transform.Find("MediaTitleBar");
+            if (titleBar != null)
+            {
+                Transform titleTextTransform = titleBar.Find("TitleText");
+                if (titleTextTransform != null)
+                {
+                    TextMeshProUGUI titleTextComp = titleTextTransform.GetComponent<TextMeshProUGUI>();
+                    if (titleTextComp != null)
+                    {
+                        titleTextComp.text = title;
+                    }
+                }
+            }
+        }
+        
+        // 従来のtitleTextも更新（互換性維持）
         if (titleText != null)
         {
             titleText.text = title;
