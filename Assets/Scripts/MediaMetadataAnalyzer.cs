@@ -55,8 +55,8 @@ public class MediaMetadataAnalyzer : MonoBehaviour
     {
         PanoramaCheckResult result = new PanoramaCheckResult();
         
-        // ファイルパスをURL形式に変換
-        string url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        // ファイルパスをURL形式に変換（完全なURL エンコーディング）
+        string url = "file:///" + EncodeFilePath(filePath);
         
         using (UnityWebRequest www = UnityWebRequestTexture.GetTexture(url))
         {
@@ -102,7 +102,7 @@ public class MediaMetadataAnalyzer : MonoBehaviour
         VideoPlayer vp = tempGO.AddComponent<VideoPlayer>();
         
         vp.source = VideoSource.Url;
-        vp.url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        vp.url = "file:///" + EncodeFilePath(filePath);
         vp.playOnAwake = false;
         
         // 動画の準備完了を待つ
@@ -387,5 +387,32 @@ public class MediaMetadataAnalyzer : MonoBehaviour
         {
             StartCoroutine(CheckImagePanorama(filePath, callback));
         }
+    }
+    
+    /// <summary>
+    /// ファイルパスを適切にURL エンコーディングする
+    /// </summary>
+    private string EncodeFilePath(string filePath)
+    {
+        // バックスラッシュをスラッシュに変換
+        string normalizedPath = filePath.Replace('\\', '/');
+        
+        // URL エンコーディングが必要な文字をエンコード
+        // System.Uri.EscapeDataStringを使用してRFC 3986に準拠
+        string[] pathSegments = normalizedPath.Split('/');
+        for (int i = 0; i < pathSegments.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(pathSegments[i]))
+            {
+                // ドライブレター（C:）はエンコードしない
+                if (i == 0 && pathSegments[i].Length == 2 && pathSegments[i][1] == ':')
+                {
+                    continue;
+                }
+                pathSegments[i] = System.Uri.EscapeDataString(pathSegments[i]);
+            }
+        }
+        
+        return string.Join("/", pathSegments);
     }
 }

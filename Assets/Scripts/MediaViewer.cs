@@ -171,8 +171,8 @@ public class MediaViewer : MonoBehaviour
     {
         UpdateStatus("パノラマ画像を読み込み中...");
         
-        // ファイルパスをfile://形式に変換
-        string url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        // ファイルパスをfile://形式に変換（完全なURL エンコーディング）
+        string url = "file:///" + EncodeFilePath(filePath);
         
         using (UnityWebRequest www = UnityWebRequestTexture.GetTexture(url))
         {
@@ -217,7 +217,7 @@ public class MediaViewer : MonoBehaviour
         
         // VideoPlayer設定
         vp.source = VideoSource.Url;
-        vp.url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        vp.url = "file:///" + EncodeFilePath(filePath);
         vp.renderMode = VideoRenderMode.RenderTexture;
         vp.targetTexture = renderTexture;
         vp.isLooping = true;
@@ -273,7 +273,7 @@ public class MediaViewer : MonoBehaviour
         // 常時表示パネルを使用、なければ新規作成
         GameObject panel = permanentMediaPanel != null ? permanentMediaPanel : GetOrCreateMediaPanel();
         
-        string url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        string url = "file:///" + EncodeFilePath(filePath);
         
         using (UnityWebRequest www = UnityWebRequestTexture.GetTexture(url))
         {
@@ -386,7 +386,7 @@ public class MediaViewer : MonoBehaviour
         
         // 動画設定
         vp.source = VideoSource.Url;
-        vp.url = "file:///" + filePath.Replace('\\', '/').Replace(" ", "%20");
+        vp.url = "file:///" + EncodeFilePath(filePath);
         vp.isLooping = true;
         vp.playOnAwake = false;
         
@@ -636,5 +636,32 @@ public class MediaViewer : MonoBehaviour
         RenderSettings.skybox = skyboxMaterial;
         
         Debug.Log("[MediaViewer] パノラマ動画をSkyboxとして設定完了");
+    }
+    
+    /// <summary>
+    /// ファイルパスを適切にURL エンコーディングする
+    /// </summary>
+    private string EncodeFilePath(string filePath)
+    {
+        // バックスラッシュをスラッシュに変換
+        string normalizedPath = filePath.Replace('\\', '/');
+        
+        // URL エンコーディングが必要な文字をエンコード
+        // System.Uri.EscapeDataStringを使用してRFC 3986に準拠
+        string[] pathSegments = normalizedPath.Split('/');
+        for (int i = 0; i < pathSegments.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(pathSegments[i]))
+            {
+                // ドライブレター（C:）はエンコードしない
+                if (i == 0 && pathSegments[i].Length == 2 && pathSegments[i][1] == ':')
+                {
+                    continue;
+                }
+                pathSegments[i] = System.Uri.EscapeDataString(pathSegments[i]);
+            }
+        }
+        
+        return string.Join("/", pathSegments);
     }
 }
