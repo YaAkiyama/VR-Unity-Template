@@ -49,6 +49,17 @@ Meta Quest 3向けVRファイルエクスプローラー
 - **MANAGE_EXTERNAL_STORAGE権限**: 全ファイルアクセス対応
 - **拡張子判定**: JPG、MP4、PNG等のメディアファイル自動検出
 
+### 6. メディアビューアーシステム（NEW）
+- **常設メディアパネル**: 右パネルに統合されたメディア表示エリア
+- **パノラマメディア対応**: 
+  - ファイル名に"360"、"panorama"、"pano"等のキーワード含む場合
+  - Skybox/PanoramicシェーダーによるSkybox背景表示（L1/L2ボタンと同様の体験）
+  - パノラマ画像・動画両対応
+- **通常メディア表示**: 
+  - 一般的な画像・動画を右パネルの常設ビューアに表示
+  - 動画再生機能、画像表示機能
+  - ファイル名タイトルバー表示
+
 ## 🎮 操作方法
 
 ### VRコントローラー
@@ -60,7 +71,9 @@ Meta Quest 3向けVRファイルエクスプローラー
 ### UI操作
 - **黄色フォルダアイコン**: クリックでフォルダ内に移動
 - **左上「↑」アイコン**: 上位フォルダに移動（Bボタンと同等）
-- **白色ファイルアイコン**: クリックでファイル選択（現在はログ出力）
+- **白色ファイルアイコン**: クリックでメディアファイル表示
+  - パノラマメディア: Skybox背景として360度表示
+  - 通常メディア: 右パネルの常設ビューアに表示
 
 ## 📋 ClaudeCode開発ルール
 
@@ -118,6 +131,9 @@ VR-Unity-Template/
 ├── Assets/
 │   ├── Scripts/
 │   │   ├── UISetup.cs               # メインのUI制御スクリプト
+│   │   ├── MediaViewer.cs           # メディアビューアーシステム
+│   │   ├── AndroidFileAccess.cs     # Androidファイルアクセス
+│   │   ├── PermissionRequester.cs   # Android権限管理
 │   │   └── VRScrollController.cs    # VRスクロール制御
 │   ├── StreamingAssets/             # エディタ用サンプルデータ
 │   │   ├── Images/
@@ -178,6 +194,42 @@ public static class SupportedExtensions
 {
     public static readonly string[] Images = { ".jpg", ".jpeg", ".png", ... };
     public static readonly string[] Videos = { ".mp4", ".mov", ".avi", ... };
+}
+```
+
+### MediaViewer.cs
+統合メディアビューアーシステム（新規追加）：
+
+```csharp
+// シングルトンパターンでメディア表示を統一管理
+public static MediaViewer Instance { get; private set; }
+
+// メディアファイル判定とルーティング
+public void OpenMediaFile(string filePath)
+{
+    // パノラマコンテンツ判定: ファイル名にキーワード含む場合
+    if (IsPanoramaContent(fileName)) {
+        // Skyboxとして表示（L1/L2ボタンと同様）
+        DisplayPanoramaImage/Video(filePath);
+    } else {
+        // 右パネルの常設ビューアに表示
+        DisplayRegularImage/Video(filePath);
+    }
+}
+
+// パノラマ判定ロジック
+private bool IsPanoramaContent(string fileName)
+{
+    string[] keywords = {"360", "panorama", "pano", "spherical", "equirectangular"};
+    return keywords.Any(keyword => fileName.ToLower().Contains(keyword));
+}
+
+// Skybox設定（画像・動画対応）
+private void SetPanoramaSkybox(Texture2D/RenderTexture texture)
+{
+    // Skybox/Panoramicシェーダー使用
+    // Latitude Longitude Layout設定
+    // RenderSettings.skybox更新
 }
 ```
 
@@ -338,22 +390,34 @@ Meta Quest 3でJPG/MP4ファイルが表示されない場合の解決方法：
 - [ ] ファイル形式別アイコン表示
 - [ ] ファイル詳細情報表示（サイズ、更新日時）
 - [ ] 並び替え機能（名前、日時、サイズ）
+- [ ] メディアビューアの操作性向上（再生/一時停止、音量調整等）
 
 ### 中長期的な機能追加
 - [ ] ファイル操作機能（コピー、移動、削除）
 - [ ] 検索・フィルタリング機能
-- [ ] ファイルプレビュー機能
 - [ ] 外部ストレージアクセス
 - [ ] クラウドストレージ連携
+- [ ] より多くのメディア形式対応
+- [ ] プレイリスト機能
 
 ## 📝 開発ログ
 
 ### 2025-09-01
+- **メディアビューアーシステム実装完了** 🆕
+  - 統合メディア表示システム（MediaViewer.cs）実装
+  - パノラマメディア自動判定機能（ファイル名キーワード検出）
+  - パノラマ画像・動画のSkybox背景表示（L1/L2ボタンと同様）
+  - 通常メディアの右パネル常設ビューア表示
+  - Skybox/PanoramicシェーダーによるVR360度表示対応
+- **常設メディアパネルシステム実装**
+  - 右パネルに統合されたメディア表示エリア
+  - ファイルクリック時の自動メディア判定・表示
+  - パノラマ・通常メディアの適切なルーティング
 - **Android 14ファイルアクセス問題を解決**
-- ContentProvider/MediaStore APIでメディアファイル検出を実装
-- MANAGE_EXTERNAL_STORAGE権限の手動付与でJPG/MP4ファイル表示成功
-- MediaScannerによるファイル強制スキャン機能追加
-- VRコントローラーのグリップボタンでファイルリスト更新機能実装
+  - ContentProvider/MediaStore APIでメディアファイル検出を実装
+  - MANAGE_EXTERNAL_STORAGE権限の手動付与でJPG/MP4ファイル表示成功
+  - MediaScannerによるファイル強制スキャン機能追加
+  - VRコントローラーのグリップボタンでファイルリスト更新機能実装
 
 ### 2025-08-30
 - **VRファイルエクスプローラー基本機能完成**
@@ -389,8 +453,11 @@ npx @anthropic-ai/claude-code
 GitHub MCPでREADME.mdを取得し、VRファイルエクスプローラーの現在の実装状況を確認してください。
 
 現在の状態：
-✅ 基本機能完成済み
-- 3パネルVR UI（中央パネル＝ファイルエクスプローラー）
+✅ 基本機能完成済み + メディアビューアー実装完了
+- 3パネルVR UI（左・中央・右パネル）
+  - 左パネル: パノラマメディア用（L1/L2ボタン）
+  - 中央パネル: ファイルエクスプローラー
+  - 右パネル: 常設メディアビューアー
 - 実際のフォルダ内容表示（エディタ・実機対応）
 - 4列グリッドレイアウト + 垂直スクロール
 - VRコントローラー操作（スクロール・ナビゲーション）
@@ -398,17 +465,24 @@ GitHub MCPでREADME.mdを取得し、VRファイルエクスプローラーの�
 - Android 14ファイルアクセス対応（MediaStore/ContentProvider）
 - グリップボタンでファイルリスト強制更新
 
+🆕 NEW: メディアビューアーシステム
+- ファイルクリックで自動メディア判定・表示
+- パノラマメディア: Skybox背景表示（ファイル名キーワード検出）
+- 通常メディア: 右パネル常設ビューアで表示
+- 画像・動画両対応、VideoPlayer統合
+
 重要な権限設定：
 ⚠️ Meta Quest 3でメディアファイル表示にはMANAGE_EXTERNAL_STORAGE権限の手動付与が必要
 詳細は「トラブルシューティング」セクション参照
 
 主要ファイル：
-- Assets/Scripts/UISetup.cs (1400+行)
-- Assets/Scripts/AndroidFileAccess.cs（ファイルアクセス処理）
-- Assets/Scripts/PermissionRequester.cs（権限管理）
-- Assets/Scripts/VRScrollController.cs
+- Assets/Scripts/UISetup.cs (1400+行) - UI制御システム
+- Assets/Scripts/MediaViewer.cs (680+行) - メディア表示システム 🆕
+- Assets/Scripts/AndroidFileAccess.cs - ファイルアクセス処理
+- Assets/Scripts/PermissionRequester.cs - 権限管理
+- Assets/Scripts/VRScrollController.cs - VRスクロール
 
-Unity MCPとGitHub MCPを使用して、拡張機能の開発や改善を継続してください。
+Unity MCPとGitHub MCPを使用して、さらなる拡張機能の開発や改善を継続してください。
 ```
 
 ## 📄 ライセンス
@@ -421,4 +495,4 @@ YaAkiyama
 
 ---
 
-**最終更新**: 2025-09-01
+**最終更新**: 2025-09-01 (メディアビューアーシステム実装完了)
