@@ -49,7 +49,6 @@ public class UISetup : MonoBehaviour
     // 外部ストレージアクセス用の状態管理
     private string[] availablePaths;  // 利用可能なストレージパス一覧
     private int currentPathIndex = 0;  // 現在選択中のパス
-    private bool showingRootSelection = false;  // ルート選択画面表示中
     
     // VRコントローラー入力の状態管理
     private bool previousBButtonPressed = false;  // 右コントローラーBボタンの前回の状態
@@ -136,6 +135,9 @@ public class UISetup : MonoBehaviour
         
         // Bボタンで上位フォルダへ遷移
         CheckNavigationInput();
+        
+        // Xボタンでファイルリスト強制更新（Android実機用）
+        CheckRefreshInput();
     }
     
     void ForceAddCollider()
@@ -1399,6 +1401,89 @@ public class UISetup : MonoBehaviour
             previousLeftBButtonPressed = bButtonPressed;
         }
     }
+    
+    /// <summary>
+    /// VRコントローラーのグリップボタン（リフレッシュ）入力をチェック
+    /// </summary>
+    void CheckRefreshInput()
+    {
+        // 右コントローラーのグリップボタンでファイルリスト更新
+        InputDevice rightController = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+        if (rightController.isValid)
+        {
+            float gripValue;
+            if (rightController.TryGetFeatureValue(CommonUsages.grip, out gripValue))
+            {
+                // グリップボタンが押された（0.5以上の値）
+                bool gripPressed = gripValue > 0.5f;
+                
+                if (gripPressed && !previousGripPressed)
+                {
+                    Debug.Log("=====================================");
+                    Debug.Log("[UISetup] グリップボタン押下 - ファイルリスト更新開始");
+                    Debug.Log("=====================================");
+                    
+                    // 現在のフォルダをMediaScannerで強制スキャン
+                    string targetPath = string.IsNullOrEmpty(currentFolderPath) 
+                        ? baseFolderPath 
+                        : Path.Combine(baseFolderPath, currentFolderPath);
+                    
+                    if (!string.IsNullOrEmpty(targetPath))
+                    {
+                        Debug.Log($"[UISetup] 📁 スキャン対象フォルダ: {targetPath}");
+                        Debug.Log($"[UISetup] 🔄 MediaScannerで強制スキャン実行中...");
+                        AndroidFileAccess.ScanFolder(targetPath);
+                    }
+                    
+                    Debug.Log("[UISetup] 🔄 ファイルリスト更新中...");
+                    RefreshFileList();
+                    Debug.Log("[UISetup] ✅ ファイルリスト更新完了！");
+                    Debug.Log("=====================================");
+                }
+                
+                previousGripPressed = gripPressed;
+            }
+        }
+        
+        // 左コントローラーのグリップボタンも同様にチェック（オプション）
+        InputDevice leftController = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+        if (leftController.isValid)
+        {
+            float gripValue;
+            if (leftController.TryGetFeatureValue(CommonUsages.grip, out gripValue))
+            {
+                bool gripPressed = gripValue > 0.5f;
+                
+                if (gripPressed && !previousLeftGripPressed)
+                {
+                    Debug.Log("=====================================");
+                    Debug.Log("[UISetup] 左グリップボタン押下 - ファイルリスト更新開始");
+                    Debug.Log("=====================================");
+                    
+                    string targetPath = string.IsNullOrEmpty(currentFolderPath) 
+                        ? baseFolderPath 
+                        : Path.Combine(baseFolderPath, currentFolderPath);
+                    
+                    if (!string.IsNullOrEmpty(targetPath))
+                    {
+                        Debug.Log($"[UISetup] 📁 スキャン対象フォルダ: {targetPath}");
+                        Debug.Log($"[UISetup] 🔄 MediaScannerで強制スキャン実行中...");
+                        AndroidFileAccess.ScanFolder(targetPath);
+                    }
+                    
+                    Debug.Log("[UISetup] 🔄 ファイルリスト更新中...");
+                    RefreshFileList();
+                    Debug.Log("[UISetup] ✅ ファイルリスト更新完了！");
+                    Debug.Log("=====================================");
+                }
+                
+                previousLeftGripPressed = gripPressed;
+            }
+        }
+    }
+    
+    private bool previousGripPressed = false; // 右グリップボタンの前回の状態
+    private bool previousLeftGripPressed = false; // 左グリップボタンの前回の状態
     
     /// <summary>
     /// 上位フォルダ（親フォルダ）へ遷移
